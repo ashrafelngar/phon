@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>مُقيِّم – تسعير الموبايلات المستعملة</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F4F6F8;--card:#fff;--ink:#14263B;--mut:#5E6C7C;--line:#DDE3EA;--pri:#14263B;--acc:#F2A900;--ok:#16895A;--bad:#C63D3D;--on:#fff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0D1722;--card:#15263A;--ink:#EAF0F6;--mut:#9BAABB;--line:#27394F;--pri:#F2A900;--on:#14263B;--ok:#3DC58C;--bad:#F07878}}
+:root[data-theme="dark"]{--bg:#0D1722;--card:#15263A;--ink:#EAF0F6;--mut:#9BAABB;--line:#27394F;--pri:#F2A900;--on:#14263B;--ok:#3DC58C;--bad:#F07878}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;font-family:Cairo,Tahoma,sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
+.wrap{max-width:720px;margin:0 auto;padding:14px}
+header{display:flex;align-items:center;justify-content:space-between;padding:6px 0 12px}
+.logo{font-weight:800;font-size:22px}.logo i{font-style:normal;color:var(--acc)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
+h2{margin:0 0 10px;font-size:20px}h3{margin:14px 0 6px;font-size:16px}
+label{display:block;font-size:14px;font-weight:600;margin:10px 0 4px}
+input,select,textarea{width:100%;font:inherit;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink)}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+button{font:inherit;font-weight:600;cursor:pointer;border:0;border-radius:10px;padding:12px 16px;background:var(--pri);color:var(--on)}
+button.sec{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button.full{width:100%}button.sm{padding:6px 10px;font-size:13px}button.bad{background:var(--bad);color:#fff}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.tabs{display:flex;gap:6px;margin-bottom:10px}.tabs button{flex:1}.tabs .on{background:var(--pri);color:var(--on)}.tabs button:not(.on){background:transparent;color:var(--ink);border:1px solid var(--line)}
+.banner{background:var(--acc);color:#14263B;border-radius:12px;padding:10px 14px;font-weight:600;margin-bottom:12px;display:flex;justify-content:space-between;gap:8px;align-items:center}
+.banner.exp{background:var(--bad);color:#fff}
+.big{display:block;width:100%;text-align:right;padding:20px;margin-bottom:10px;border-radius:14px;font-size:18px;background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.big small{display:block;font-weight:400;color:var(--mut);font-size:14px}
+.big.main{background:var(--pri);color:var(--on);border:0}.big.main small{color:inherit;opacity:.8}
+.steps{display:flex;gap:4px;margin-bottom:12px}.steps span{flex:1;height:5px;border-radius:3px;background:var(--line)}.steps .d{background:var(--acc)}
+.opts{display:flex;flex-wrap:wrap;gap:6px}.opts button{padding:8px 12px;font-size:14px;background:transparent;color:var(--ink);border:1px solid var(--line)}.opts button.on{background:var(--pri);color:var(--on);border-color:var(--pri)}
+.q{padding:10px 0;border-top:1px solid var(--line)}.q:first-of-type{border-top:0}.q b{font-size:14px}
+.ph{border:1px dashed var(--line);border-radius:12px;padding:10px;text-align:center;font-size:14px}.ph img{max-width:100%;max-height:140px;border-radius:8px;display:block;margin:6px auto 0}
+.price{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center}.price div{background:var(--bg);border-radius:12px;padding:12px 4px}.price b{display:block;font-size:20px;color:var(--ok)}.price span{font-size:13px;color:var(--mut)}
+.warn{background:#FCE9E9;color:#8A1F1F;border-radius:10px;padding:10px;margin:8px 0;font-weight:600}
+.mut{color:var(--mut);font-size:13px}.tbl{width:100%;border-collapse:collapse;font-size:14px}.tbl td,.tbl th{padding:8px 4px;border-bottom:1px solid var(--line);text-align:right}
+.tbl-s{overflow-x:auto}
+#toast{position:fixed;inset-inline:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:12px 14px;border-radius:12px;display:none;z-index:9;text-align:center}
+.pre{white-space:pre-wrap;background:var(--bg);border-radius:10px;padding:10px;font-size:13px}
+</style></head><body><div class="wrap"><header><div class="logo">مُقيِّم<i>.</i></div><div id="top"></div></header><main id="app"></main></div><div id="toast"></div>
+<script>
+const $=s=>document.querySelector(s),ADMIN_PHONE="01102394162",WA="201102394162";
+const DB={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let mem={users:null,me:null,hist:null,log:null};
+const users=()=>mem.users??(mem.users=DB.get("u",[{id:1,name:"الأدمن",shop:"-",addr:"-",phone:"admin",pass:"admin123",admin:1,exp:Date.now()+9e12,ban:0}]));
+const saveU=()=>DB.set("u",mem.users);
+const hist=()=>mem.hist??(mem.hist=DB.get("h",[])),logs=()=>mem.log??(mem.log=DB.get("l",[]));
+let me=DB.get("me",null),view="auth",tab="in",pending=null,W=null;
+const $a=$("#app");
+function toast(t,ms=3500){const e=$("#toast");e.textContent=t;e.style.display="block";clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display="none",ms)}
+const cur=()=>me&&users().find(u=>u.id===me);
+const daysLeft=u=>Math.ceil((u.exp-Date.now())/864e5);
+const fmt=n=>Math.round(n).toLocaleString("en-US");
+const BR={Samsung:["Galaxy A15","Galaxy A25","Galaxy A35","Galaxy A55","Galaxy S23","Galaxy S24"],Xiaomi:["Redmi 12","Redmi Note 12","Redmi Note 13","Poco X6","Xiaomi 13T"],Oppo:["Reno 8","Reno 10","A58","A78","Find X5"],Realme:["C55","C67","11 Pro","12 Pro","GT Neo 5"],Vivo:["Y17s","Y27","V27","V29"],Infinix:["Hot 30","Note 30","Zero 30","Smart 8"],Tecno:["Spark 10","Camon 20","Phantom X2"],Honor:["X7b","X8a","90","Magic5"],Huawei:["Nova 11","P40","Y9a"],Motorola:["G54","Edge 40"],OnePlus:["Nord CE3","11"],Nokia:["G21","C32"]};
+const Q=[["الشكل",[["screen","حالة الشاشة",["سليمة","خدوش خفيفة","خدوش عميقة","مكسورة"],0],["body","الظهر والإطار",["سليم","خدوش","كسر أو انبعاج"],0],["lines","خطوط أو ظلال أو بقع على الشاشة",["لأ","آه"],0]]],
+["البطارية",[["bat","نسبة الصحة",["+90","80–90","أقل من 80"],0],["hot","بتفصل أو بتسخن",["لأ","آه"],0]]],
+["الصيانة",[["rep","اتفتح أو اتصلّح قبل كده",["لأ","آه"],0],["what","إيه اللي اتغيّر؟",["شاشة","باغة","بطارية","حاجة تانية"],0,"rep"],["orig","الشاشة أصلية؟",["أصلية","غير أصلية"],0]]],
+["الوظائف",[["fp","البصمة أو الوش",["شغالة","لا تعمل"],0],["cam","الكاميرات",["سليمة","فيها مشكلة"],0],["snd","السماعة والمايك",["سليمة","فيها مشكلة"],0],["chg","الشحن",["سليم","فيه مشكلة"],0],["net","الواي فاي والشبكة",["سليمة","فيها مشكلة"],0],["btn","الأزرار",["سليمة","فيها مشكلة"],0]]],
+["الملحقات",[["acc","الموجود مع الجهاز",["كرتونة أصلية","شاحن أصلي","كابل","سماعة","جراب","فاتورة أو ضمان ساري"],0,0,1]]],
+["الجمارك والضريبة",[["cus","الجهاز مسجّل والجمارك مدفوعة؟",["آه","لأ"],0]]]];
+function render(){const u=cur();
+ $("#top").innerHTML=u?`<button class="sec sm" onclick="logout()">خروج</button>`:"";
+ if(!u&&view!=="auth")view="auth";
+ if(!u)return A();
+ if(u.ban){$a.innerHTML=`<div class="card"><h2>الحساب محظور</h2><p>تواصل مع الأدمن على ${ADMIN_PHONE}</p></div>`;return}
+ ({home:H,wiz:Wz,hist:Hs,admin:Ad}[view]||H)(u);scrollTo(0,0)}
+function A(){const f=`<label>رقم الهاتف</label><input id="ph" inputmode="tel" placeholder="01xxxxxxxxx"><label>كلمة السر</label><input id="pw" type="password">`;
+ $a.innerHTML=`<div class="card"><h2>أهلاً بيك يا تاجر</h2><p class="mut">اعرف سعر الشراء المناسب لأي جهاز أندرويد في دقيقتين.</p>
+ <div class="tabs"><button class="${tab=="in"?"on":""}" onclick="tab='in';A()">تسجيل دخول</button><button class="${tab=="up"?"on":""}" onclick="tab='up';A()">حساب جديد</button></div>
+ ${tab=="up"?`<label>الاسم الشخصي</label><input id="nm"><label>اسم المحل</label><input id="sh"><label>العنوان</label><input id="ad">`:""}${f}
+ ${tab=="up"?`<p class="mut">هنبعت كود تحقق SMS على الرقم.</p>`:`<p style="margin:8px 0"><a href="#" onclick="forgot();return false">نسيت كلمة السر؟</a></p>`}
+ <button class="full" onclick="${tab=="up"?"signup()":"login()"}">${tab=="up"?"إنشاء حساب":"دخول"}</button></div><div id="otp"></div>`}
+function login(){const p=$("#ph").value.trim(),w=$("#pw").value,u=users().find(x=>x.phone===p&&x.pass===w);if(!u)return toast("الرقم أو كلمة السر غلط");me=u.id;DB.set("me",me);view=u.admin?"admin":"home";render()}
+function logout(){me=null;DB.set("me",null);view="auth";render()}
+function sms(cb,label){const c=String(Math.floor(1000+Math.random()*9000));toast("كود التحقق (تجريبي): "+c,9000);
+ $("#otp").innerHTML=`<div class="card"><h3>${label}</h3><input id="cd" inputmode="numeric" placeholder="كود من 4 أرقام"><button class="full" style="margin-top:8px" id="okb">تأكيد</button></div>`;
+ $("#okb").onclick=()=>$("#cd").value.trim()===c?cb():toast("الكود غلط")}
+function signup(){const d={name:$("#nm").value.trim(),shop:$("#sh").value.trim(),addr:$("#ad").value.trim(),phone:$("#ph").value.trim(),pass:$("#pw").value};
+ if(!d.name||!d.shop||!d.addr||!d.phone||d.pass.length<6)return toast("كمّل كل البيانات (كلمة السر 6 حروف على الأقل)");
+ if(users().some(u=>u.phone===d.phone))return toast("الرقم ده مسجّل قبل كده");
+ sms(()=>{const us=users();d.id=Date.now();d.exp=Date.now()+7*864e5;d.ban=0;us.push(d);saveU();me=d.id;DB.set("me",me);view="home";toast("تم إنشاء الحساب – 7 أيام مجاناً");render()},"أدخل كود التحقق")}
+function forgot(){const p=$("#ph").value.trim(),u=users().find(x=>x.phone===p);if(!u)return toast("اكتب رقمك الأول");
+ sms(()=>{const n=prompt("كلمة السر الجديدة (6 حروف على الأقل)");if(n&&n.length>=6){u.pass=n;saveU();toast("تم تغيير كلمة السر")}},"كود استرجاع كلمة السر")}
+function trial(u){const d=daysLeft(u);return d>0?`<div class="banner"><span>نسخة تجريبية – باقي ${d} ${d<=10?"يوم":"يوم"}</span>${d<=2?"<span>التجربة على وشك الانتهاء</span>":""}</div>`:`<div class="banner exp"><span>انتهت التجربة – تواصل مع الأدمن للاشتراك</span><button class="sm" style="background:#fff;color:#14263B" onclick="location.href='https://wa.me/${WA}'">${ADMIN_PHONE}</button></div>`}
+function H(u){$a.innerHTML=trial(u)+`<button class="big main" onclick="start()">تقييم جهاز أندرويد<small>ادخل البيانات وارفع الصور واعرف سعر الشراء</small></button>
+<button class="big" onclick="toast('تقييم الآيفون قريباً')">تقييم جهاز آيفون<small>قريباً</small></button>
+<button class="big" onclick="help()">مساعدة<small>كلّم الدعم على واتساب</small></button>
+<button class="big" onclick="view='hist';render()">سجل التقييمات<small>${hist().filter(h=>h.uid===u.id).length} تقييم</small></button>`}
+function help(){const u=cur();location.href=`https://wa.me/${WA}?text=`+encodeURIComponent(`مرحباً، أنا ${u.name} (${u.phone}) وأحتاج مساعدة.`)}
+function start(){const u=cur();if(daysLeft(u)<=0)return toast("انتهت التجربة. تواصل مع الأدمن للاشتراك.");W={s:0,brand:"Samsung",model:"",ram:"8",use:"",img:{},i1:"",i2:"",ser:"",b1:"",b2:"",a:{},mk:["","","","","",""],note:""};view="wiz";render()}
+function Wz(u){const s=W.s,bar=`<div class="steps">${[0,1,2].map(i=>`<span class="${i<=s?"d":""}"></span>`).join("")}</div>`;
+ const nav=(n)=>`<div class="row" style="margin-top:14px">${s?`<button class="sec" onclick="W.s--;save();render()">رجوع</button>`:`<button class="sec" onclick="view='home';render()">إلغاء</button>`}<button onclick="${n}">${s==2?"احسب السعر":"التالي"}</button></div>`;
+ if(s==0){const ms=BR[W.brand]||[];$a.innerHTML=bar+`<div class="card"><h2>بيانات الجهاز</h2><label>الشركة</label><select id="br" onchange="W.brand=this.value;W.model='';Wz()">${Object.keys(BR).map(b=>`<option ${b==W.brand?"selected":""}>${b}</option>`).join("")}</select>
+ <label>الموديل</label><select id="mo"><option value="">اختر…</option>${ms.map(m=>`<option ${m==W.model?"selected":""}>${m}</option>`).join("")}</select><input id="mo2" placeholder="موديل مش في القايمة؟ اكتبه هنا" value="${ms.includes(W.model)?"":W.model}" style="margin-top:6px">
+ <div class="row"><div><label>الرام (GB)</label><select id="ra">${[2,3,4,6,8,12,16].map(r=>`<option ${r==W.ram?"selected":""}>${r}</option>`).join("")}</select></div><div><label>الاستعمال</label><select id="us">${["أقل من 6 شهور","6 – 12 شهر","1 – 2 سنة","أكتر من سنتين"].map(r=>`<option ${r==W.use?"selected":""}>${r}</option>`).join("")}</select></div></div></div>`+nav("n0()")}
+ if(s==1){const P=[["f","صورة وش الجهاز"],["b","صورة ظهر الجهاز"],["x","صورة الكرتونة (السيريال وIMEI)"],["c","صورة شاشة *#06# من الجهاز"]];
+ $a.innerHTML=bar+`<div class="card"><h2>الصور والبيانات</h2><div class="row" style="flex-wrap:wrap">${P.map(([k,t])=>`<div class="ph" style="flex:1 1 45%">${t}<input type="file" accept="image/*" onchange="pic('${k}',this)" style="margin-top:6px">${W.img[k]?`<img src="${W.img[k]}">`:""}</div>`).join("")}</div>
+ <p class="mut">لو مفيش كرتونة ارفع صورة *#06# بس. اكتب الأرقام من الصور:</p>
+ <label>IMEI الشريحة 1 (من الجهاز *#06#)</label><input id="i1" inputmode="numeric" maxlength="15" value="${W.i1}"><label>IMEI الشريحة 2</label><input id="i2" inputmode="numeric" maxlength="15" value="${W.i2}">
+ <label>IMEI الشريحة 1 من الكرتونة (لو فيه)</label><input id="b1" inputmode="numeric" maxlength="15" value="${W.b1}"><label>IMEI الشريحة 2 من الكرتونة</label><input id="b2" inputmode="numeric" maxlength="15" value="${W.b2}"><label>السيريال</label><input id="se" value="${W.ser}"></div>`+nav("n1()")}
+ if(s==2){$a.innerHTML=bar+`<div class="card"><h2>حالة الجهاز</h2>${Q.map(([g,qs])=>`<h3>${g}</h3>`+qs.filter(q=>!q[4]||W.a.rep==="آه").map(q=>`<div class="q"><b>${q[1]}</b><div class="opts" style="margin-top:6px">${q[2].map((o,i)=>`<button class="${q[5]?(W.a[q[0]]||[]).includes(o)?"on":"":W.a[q[0]]===o?"on":""}" onclick="ans('${q[0]}','${o}',${q[5]?1:0})">${o}</button>`).join("")}</div></div>`).join("")).join("")}</div>`+nav("n2()")}
+}
+function save(){const g=i=>{const e=$("#"+i);return e?e.value.trim():null};
+ if(W.s==0){const m=g("mo2")||g("mo");if(m!==null)W.model=m;if(g("ra"))W.ram=g("ra");if(g("us"))W.use=g("us")}
+ if(W.s==1&&$("#i1")){W.i1=g("i1");W.i2=g("i2");W.b1=g("b1");W.b2=g("b2");W.ser=g("se")}}
+function n0(){save();if(!W.model)return toast("اختار الموديل");W.s=1;render()}
+function n1(){save();if(!W.img.f||!W.img.b)return toast("ارفع صورة الوش والظهر");if(!W.img.c&&!W.i1)return toast("ارفع صورة *#06# أو اكتب IMEI");W.s=2;render()}
+function n2(){const req=["screen","body","bat","rep","fp","cus"];if(req.some(k=>!W.a[k]))return toast("جاوب الأسئلة الأساسية (الشاشة، الظهر، البطارية، الصيانة، البصمة، الجمارك)");if(W.a.rep==="آه"&&!W.a.what)return toast("حدد إيه اللي اتغيّر");calc()}
+function ans(k,o,multi){if(multi){const a=W.a[k]||[];W.a[k]=a.includes(o)?a.filter(x=>x!==o):[...a,o]}else W.a[k]=o;Wz(cur())}
+function pic(k,el){const f=el.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const c=document.createElement("canvas"),sc=Math.min(1,400/im.width);c.width=im.width*sc;c.height=im.height*sc;c.getContext("2d").drawImage(im,0,0,c.width,c.height);W.img[k]=c.toDataURL("image/jpeg",.6);save();Wz(cur())};im.src=r.result};r.readAsDataURL(f)}
+function cond(){const a=W.a;if(a.rep==="آه"||a.orig==="غير أصلية"||a.screen==="مكسورة")return 2;const clean=a.screen==="سليمة"&&a.body==="سليم"&&a.lines!=="آه"&&a.bat==="+90"&&(a.acc||[]).includes("كرتونة أصلية");return clean?0:1}
+async function calc(){const c=cond(),a=W.a,n=[];if(a.bat==="أقل من 80")n.push("البطارية أقل من 80%");if((a.acc||[]).length<3)n.push("الملحقات ناقصة");if(a.rep==="آه")n.push("تم فتحه أو صيانته");
+ $a.innerHTML=`<div class="card"><h2>بندوّر على أسعار السوق…</h2><p class="mut">بنراجع إعلانات المستعمل في مصر. ممكن ياخد حتى دقيقة.</p></div>`;
+ try{const r=await fetch("/api/price",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({brand:W.brand,model:W.model,ram:W.ram,customs:a.cus==="آه"?"مسجّل ومدفوعة":"غير مسجّل أو عليه رسوم",notes:n})});const d=await r.json();if(!r.ok)throw d;
+ const g=d.ranges[["excellent","good","repaired"][c]];if(!g)return fail("مفيش بيانات كافية عن سعر الجهاز ده في السوق. جرّب موديل أو رام تاني.");
+ const mn=g.min*.9,mx=g.max*.9,av=(mn+mx)/2,u=cur();hist().push({uid:u.id,t:Date.now(),dev:W.brand+" "+W.model+" "+W.ram+"GB",c,mn,mx,av});DB.set("h",mem.hist);W.res={c,lo:g.min,hi:g.max,mn,mx,av};W.s=3;Rs()}catch(e){fail("تعذّر جلب الأسعار. افتح الموقع من رابط السيرفر وراجع الاتصال.")}}
+function fail(m){$a.innerHTML=`<div class="card"><h2>مش قادرين نحسب السعر</h2><p>${m}</p><div class="row"><button class="sec" onclick="W.s=2;render()">رجوع</button><button onclick="calc()">حاول تاني</button></div></div>`}
+function Rs(){const r=W.res,mis=W.b1&&W.i1&&(W.b1!==W.i1||(W.b2&&W.i2&&W.b2!==W.i2));
+ $a.innerHTML=`<div class="card"><h2>${W.brand} ${W.model} – ${W.ram}GB</h2><p class="mut">الحالة: ${["ممتازة","جيدة","تمت صيانته"][r.c]} • مدى السوق ${fmt(r.lo)} – ${fmt(r.hi)} ج</p>
+ ${mis?`<div class="warn">تحذير: IMEI الكرتونة مختلف عن IMEI الجهاز. راجع الأرقام قبل الشراء.</div>`:""}${W.a.cus==="لأ"?`<div class="warn">الجهاز غير مسجّل أو عليه رسوم جمارك.</div>`:""}
+ <div class="price"><div><span>الحد الأدنى</span><b>${fmt(r.mn)}</b></div><div><span>المتوسط</span><b>${fmt(r.av)}</b></div><div><span>الحد الأقصى</span><b>${fmt(r.mx)}</b></div></div><p class="mut">سعر الشراء = مدى السوق ناقص 10% (بالجنيه).</p>
+ <button class="full" onclick="view='home';render()">رجوع للرئيسية</button></div>`}
+function Hs(u){const h=hist().filter(x=>x.uid===u.id).reverse();$a.innerHTML=trial(u)+`<div class="card"><h2>سجل التقييمات</h2>${h.length?`<div class="tbl-s"><table class="tbl"><tr><th>التاريخ</th><th>الجهاز</th><th>من</th><th>إلى</th></tr>${h.map(x=>`<tr><td>${new Date(x.t).toLocaleDateString("ar-EG")}</td><td>${x.dev}</td><td>${fmt(x.mn)}</td><td>${fmt(x.mx)}</td></tr>`).join("")}</table></div>`:`<p class="mut">لسه معملتش أي تقييم. ابدأ أول تقييم من الرئيسية.</p>`}<button class="sec full" style="margin-top:10px" onclick="view='home';render()">رجوع</button></div>`}
+function Ad(u){const us=users().filter(x=>!x.admin),lg=logs().slice(-15).reverse();$a.innerHTML=`<div class="card"><h2>لوحة الأدمن</h2>${us.length?us.map(x=>`<div class="q"><b>${x.name}</b> – ${x.shop}<br><span class="mut">${x.phone} • باقي ${Math.max(0,daysLeft(x))} يوم ${x.ban?"• محظور":""}</span><div class="row" style="margin-top:6px"><button class="sm" onclick="adm(${x.id},7)">+7 أيام</button><button class="sm sec" onclick="adm(${x.id},-1)">-1 يوم</button><button class="sm ${x.ban?"sec":"bad"}" onclick="adm(${x.id},'ban')">${x.ban?"فك الحظر":"حظر"}</button></div></div>`).join(""):`<p class="mut">مفيش مستخدمين لسه.</p>`}</div>
+ <div class="card"><h3>سجل العمليات</h3>${lg.length?lg.map(l=>`<div class="mut">${new Date(l.t).toLocaleString("ar-EG")} – ${l.m}</div>`).join(""):`<p class="mut">لا توجد عمليات.</p>`}</div>`}
+function adm(id,a){const x=users().find(u=>u.id===id);let m;if(a==="ban"){x.ban=x.ban?0:1;m=(x.ban?"حظر ":"فك حظر ")+x.name}else{x.exp+=a*864e5;m=(a>0?"زوّد ":"خصم ")+Math.abs(a)+" يوم لـ "+x.name}saveU();logs().push({t:Date.now(),m});DB.set("l",mem.log);Ad(cur())}
+render();
+</script></body></html>
