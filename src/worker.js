@@ -26,7 +26,7 @@ async function askGemini(prompt) {
   if (!r.ok) throw new Error(JSON.stringify(j));
   const text = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("\n");
   const m = text.match(/\{[\s\S]*\}/);
-  if (!m) throw new Error("no json");
+  if (!m) throw new Error("no json. الرد كان: " + text.slice(0, 300));
   const raw = JSON.parse(m[0]), out = {};
   for (const k of ["excellent", "good", "repaired"]) {
     const v = raw[k];
@@ -36,6 +36,8 @@ async function askGemini(prompt) {
 }
 
 const J = (o, c = 200) => new Response(JSON.stringify(o), { status: c, headers: { "content-type": "application/json; charset=utf-8" } });
+const T = (t, c = 200) => new Response(t, { status: c, headers: { "content-type": "text/plain; charset=utf-8" } });
+
 async function price(request, env) {
   KEY = env.GEMINI_API_KEY; if (env.MODEL) MODEL = env.MODEL;
   if (!KEY) return J({ error: "المفتاح غير مضبوط" }, 500);
@@ -54,6 +56,17 @@ export default {
   async fetch(request, env) {
     const u = new URL(request.url);
     if (u.pathname === "/api/price" && request.method === "POST") return price(request, env);
+    if (u.pathname === "/test") {
+      KEY = env.GEMINI_API_KEY;
+      if (env.MODEL) MODEL = env.MODEL;
+      if (!KEY) return T("المفتاح مش موجود في Cloudflare", 500);
+      try {
+        const v = await askGemini(buildPrompt({ brand: "Samsung", model: "Galaxy A15", ram: "8", customs: "", notes: [] }));
+        return T(JSON.stringify(v));
+      } catch (e) {
+        return T("خطأ: " + e.message, 500);
+      }
+    }
     return new Response("Not found", { status: 404 });
   }
 };
