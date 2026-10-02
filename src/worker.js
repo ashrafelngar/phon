@@ -1,7 +1,8 @@
 let GKEY, TKEY, MODEL = "gemini-3.5-flash-lite";
 const cache = new Map();
 const MAXSPREAD = 3000; // أقصى فرق بين الأسعار المتقاربة التي نعتمد عليها (جنيه)
-const MINSPREAD = 500;  // أقل فرق بين الحد الأدنى والأقصى حتى لا تتطابق الأرقام (جنيه)
+// الفرق بين الحد الأدنى والحد الأقصى حسب متوسط سعر الإعلانات (جنيه)
+const spreadFor = (price) => price < 10000 ? 500 : price <= 20000 ? 1500 : 2500;
 const COND = [
   { key: "excellent", ar: "ممتاز / كسر زيرو بالعلبة (لم يُستعمل تقريباً)", q: "حالة ممتازة كسر زيرو بالعلبة" },
   { key: "good", ar: "جيد أو به خدوش بسيطة", q: "حالة جيدة خدوش بسيطة" },
@@ -60,8 +61,8 @@ async function askGemini(prompt) {
   return Array.isArray(v.prices) ? v.prices.map(Number).filter(x => x > 0) : [];
 }
 
-// نختار أكبر مجموعة أسعار متقاربة (فرقها لا يزيد عن MAXSPREAD)
-// الحد الأدنى = متوسط النصف الأقل، الحد الأقصى = متوسط النصف الأعلى، والمتوسط = متوسط الكل
+// نختار أكبر مجموعة أسعار متقاربة، ومتوسطها هو الحد الأدنى.
+// المتوسط = الأدنى + نصف الفرق، والأقصى = الأدنى + الفرق (الفرق حسب فئة السعر)
 const mean = a => a.reduce((s, x) => s + x, 0) / a.length;
 function tight(prices) {
   const p = [...prices].sort((a, b) => a - b);
@@ -73,11 +74,8 @@ function tight(prices) {
     if (!best || n > best.n) best = { n, i, j };
   }
   if (!best || best.n < 2) return null;
-  const w = p.slice(best.i, best.j + 1), h = Math.floor(w.length / 2);
-  const avg = mean(w);
-  let min = mean(w.slice(0, h)), max = mean(w.slice(-h));
-  if (max - min < MINSPREAD) { min = avg - MINSPREAD / 2; max = avg + MINSPREAD / 2; }
-  return { min: Math.round(min), max: Math.round(max), avg: Math.round(avg) };
+  const base = Math.round(mean(p.slice(best.i, best.j + 1)) / 50) * 50, sp = spreadFor(base);
+  return { base, min: base, avg: base + sp / 2, max: base + sp };
 }
 
 async function getRanges(d) {
