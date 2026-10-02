@@ -1,8 +1,13 @@
 let GKEY, TKEY, MODEL = "gemini-3.5-flash-lite";
 const cache = new Map();
+const COND = [
+  { key: "excellent", ar: "ممتاز / كسر زيرو بالعلبة (لم يُستعمل تقريباً)", q: "حالة ممتازة كسر زيرو بالعلبة" },
+  { key: "good", ar: "جيد أو به خدوش بسيطة", q: "حالة جيدة خدوش بسيطة" },
+  { key: "repaired", ar: "تمت صيانته (تغيير شاشة أو باغة)", q: "متغير شاشة صيانة" }
+];
 
-async function tavily(d) {
-  const q = `${d.brand} ${d.model} ${d.ram}GB مستعمل للبيع في مصر السعر بالجنيه`;
+async function tavily(d, c) {
+  const q = `${d.brand} ${d.model} ${d.ram}GB مستعمل ${COND[c].q} للبيع في مصر دوبيزل السعر بالجنيه`;
   const call = (extra) => fetch("https://api.tavily.com/search", {
     method: "POST",
     headers: { "content-type": "application/json", authorization: "Bearer " + TKEY },
@@ -15,23 +20,24 @@ async function tavily(d) {
   return (j.results || []).map(x => ({ title: x.title, url: x.url, content: (x.content || "").slice(0, 600) }));
 }
 
-function buildPrompt(d, results) {
+function buildPrompt(d, c, results) {
   const notes = [d.customs, ...(d.notes || [])].filter(Boolean).join("، ");
   const src = results.map((x, i) => `[${i + 1}] ${x.title}\n${x.url}\n${x.content}`).join("\n\n");
-  return `أنت تستخرج أسعار الجهاز المستعمل في مصر من نتائج البحث فقط.
+  return `أنت تستخرج سعر الجهاز المستعمل في مصر من نتائج البحث فقط.
 الجهاز: ${d.brand} ${d.model} رام ${d.ram}
-ملاحظات: ${notes}
+الحالة المطلوبة: ${COND[c].ar}
+ملاحظات على الجهاز: ${notes}
 
 نتائج البحث:
 ${src}
 
-المطلوب: من الأسعار المذكورة صراحةً في النتائج أعلاه فقط، استخرج مدى السعر بالجنيه المصري (min وmax) لكل حالة:
-excellent = ممتاز / كسر زيرو بالعلبة
-good = جيد أو خدوش بسيطة (وأي إعلان لا يذكر حالة الجهاز)
-repaired = تمت صيانته (تغيير شاشة أو باغة)
-القواعد: تجاهل سعر الجهاز الجديد وأسعار الدول الأخرى وأي عملة غير الجنيه المصري، وتجاهل الإعلانات لجهاز أو رام مختلف. لا تخمّن أبداً: لو لا توجد أسعار كافية لحالة ضع null.
-أجب بـ JSON فقط بهذا الشكل:
-{"excellent":{"min":0,"max":0},"good":{"min":0,"max":0},"repaired":{"min":0,"max":0}}`;
+المطلوب: من الأسعار المذكورة صراحةً في النتائج أعلاه فقط، استخرج مدى السعر بالجنيه المصري (min وmax) للجهاز في الحالة المطلوبة فقط.
+القواعد:
+- اعتمد فقط على الإعلانات التي تتطابق حالتها مع الحالة المطلوبة. للحالة الجيدة يمكن قبول الإعلان الذي لا يذكر حالة الجهاز، أما للممتاز أو الصيانة فيجب أن يذكر الإعلان ذلك صراحةً.
+- تجاهل سعر الجهاز الجديد وأسعار الدول الأخرى وأي عملة غير الجنيه المصري، وتجاهل الإعلانات لجهاز أو رام مختلف.
+- تجاهل الأسعار الشاذة (الأعلى أو الأقل بكثير من باقي الأسعار).
+- لا تخمّن أبداً: لو لا توجد أسعار كافية ضع null.
+أجب بـ JSON فقط بهذا الشكل: {"min":0,"max":0} أو null`;
 }
 
 async function askGemini(prompt) {
@@ -45,26 +51,24 @@ async function askGemini(prompt) {
   });
   const j = await r.json();
   if (!r.ok) throw new Error("gemini: " + JSON.stringify(j));
-  const text = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("\n");
+  const text = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("\n").trim();
+  if (text === "null") return null;
   const m = text.match(/\{[\s\S]*\}/);
   if (!m) throw new Error("no json. الرد كان: " + text.slice(0, 300));
-  const raw = JSON.parse(m[0]), out = {};
-  for (const k of ["excellent", "good", "repaired"]) {
-    const v = raw[k];
-    out[k] = v && +v.min > 0 && +v.max >= +v.min ? { min: +v.min, max: +v.max } : null;
-  }
-  return out;
+  const v = JSON.parse(m[0]);
+  return v && +v.min > 0 && +v.max >= +v.min ? { min: +v.min, max: +v.max } : null;
 }
 
 async function getRanges(d) {
-  const key = [d.brand, d.model, d.ram, d.customs, (d.notes || []).join()].join("|").toLowerCase(), now = Date.now();
-  const c = cache.get(key);
-  if (c && now - c.t < 864e5) return { ranges: c.v, sources: c.n, cached: true };
-  const results = await tavily(d);
-  const empty = { excellent: null, good: null, repaired: null };
-  const v = results.length ? await askGemini(buildPrompt(d, results)) : empty;
-  cache.set(key, { t: now, v, n: results.length });
-  return { ranges: v, sources: results.length };
+  const c = [0, 1, 2].includes(+d.cond) ? +d.cond : 1, now = Date.now();
+  const key = [d.brand, d.model, d.ram, c, d.customs, (d.notes || []).join()].join("|").toLowerCase();
+  const hit = cache.get(key);
+  if (hit && now - hit.t < 864e5) return hit.v;
+  const results = await tavily(d, c);
+  const range = results.length ? await askGemini(buildPrompt(d, c, results)) : null;
+  const out = { ranges: { excellent: null, good: null, repaired: null, [COND[c].key]: range }, sources: results.length, cond: COND[c].key };
+  cache.set(key, { t: now, v: out });
+  return out;
 }
 
 const J = (o, c = 200) => new Response(JSON.stringify(o), { status: c, headers: { "content-type": "application/json; charset=utf-8" } });
@@ -90,9 +94,10 @@ export default {
     }
     if (u.pathname === "/test") {
       if (!setup(env)) return T("ناقص مفتاح: تأكد من GEMINI_API_KEY و TAVILY_API_KEY في Cloudflare", 500);
+      const q = u.searchParams;
       try {
-        const r = await getRanges({ brand: "Samsung", model: "Galaxy A15", ram: "8", customs: "", notes: [] });
-        return T("عدد نتائج البحث: " + r.sources + "\n" + JSON.stringify(r.ranges));
+        const r = await getRanges({ brand: q.get("brand") || "Realme", model: q.get("model") || "C55", ram: q.get("ram") || "8", cond: q.get("c") || "1", customs: "", notes: [] });
+        return T("الحالة: " + r.cond + "\nعدد نتائج البحث: " + r.sources + "\n" + JSON.stringify(r.ranges[r.cond]));
       } catch (e) { return T("خطأ: " + e.message, 500); }
     }
     return new Response("Not found", { status: 404 });
