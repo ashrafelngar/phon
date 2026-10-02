@@ -123,13 +123,16 @@ const kv=a=>a.length?`<div class="kv">${a.map(i=>`<div><span>${esc(i.label)}</sp
 const USE=["أقل من 6 شهور","6 – 12 شهر","1 – 2 سنة","أكتر من سنتين"];
 const DL=()=>`<datalist id="bl">${Object.keys(BR).map(b=>`<option>${b}</option>`).join("")}</datalist>`;
 const RS=()=>`<select id="ra"><option value="">اختر</option>${[2,3,4,6,8,12,16].map(r=>`<option ${r==W.ram?"selected":""}>${r}</option>`).join("")}</select>`;
-const infoHtml=()=>W.info==="load"?`<div class="ld"><div class="spin"></div><p class="mut">بنجيب معلومات الجهاز…</p></div>`:W.info==="err"?`<p class="mut">مقدرناش نجيب معلومات. كمّل بالبيانات اللي كتبتها.</p>`:W.info?`<h3>معلومات عن الجهاز</h3>${W.info.items.length?kv(W.info.items):`<p class="mut">ملقيناش معلومات كفاية.</p>`}<p class="mut">${(W.info.sources||[]).map(x=>`<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title||x.url)}</a>`).join(" • ")}</p><p class="mut">معلومات عامة من الإنترنت للتأكد بس.</p>`:"";
-function Dt(){const use=`<label>الاستعمال</label><select id="us">${USE.map(r=>`<option ${r==W.use?"selected":""}>${r}</option>`).join("")}</select>`;
- if(W.manual)return `<div class="card"><h2>بيانات الجهاز</h2><p class="mut">اكتب بيانات الجهاز وإحنا هنجيبلك معلومات عنه.</p><label>السيريال</label><input id="se" value="${esc(W.ser)}"><label>اسم الجهاز (الشركة)</label><input id="br" list="bl" value="${esc(W.brand)}">${DL()}<label>الموديل</label><input id="mo" value="${esc(W.model)}"><div class="row"><div><label>الرام (GB)</label>${RS()}</div><div><label>الذاكرة (GB)</label><input id="st" inputmode="numeric" value="${esc(W.st)}"></div></div>${use}<button class="sec full" style="margin-top:10px" onclick="getInfo()">هات معلومات الجهاز</button>${infoHtml()}</div>`;
- const mis=mism(),ph=[["IMEI 1",W.i1],["IMEI 2",W.i2],["السيريال",W.serD]].filter(x=>x[1]).map(x=>({label:x[0],value:x[1]})),nd=!W.brand||!W.model||!W.ram;
- return `<div class="card"><h2>تفاصيل الجهاز</h2>${mis.map(m=>`<div class="warn">تحذير: ${m}. راجع الأرقام قبل الشراء.</div>`).join("")}${mis.length?"":`<p style="color:var(--ok);font-weight:600">✔ اتقرت من الكرتونة</p>`}<h3>من الكرتونة</h3>${kv(W.items)}<h3>من الجهاز (*#06#)</h3>${ph.length?kv(ph):`<p class="mut">ما اتقراش بيانات من الشاشة</p>`}${nd?`<h3>بيانات ناقصة (مش مكتوبة على الكرتونة)</h3>${DL()}`+(W.brand?"":`<label>الشركة</label><input id="br" list="bl">`)+(W.model?"":`<label>الموديل</label><input id="mo">`)+(W.ram?"":`<label>الرام (GB)</label>${RS()}`):""}${use}</div>`}
+const infoHtml=()=>W.info==="load"?`<div class="ld"><div class="spin"></div><p class="mut">بنجيب معلومات الجهاز…</p></div>`:W.info==="err"?`<p class="mut">مقدرناش نجيب معلومات. كمّل بالبيانات اللي كتبتها.</p>`:W.info?`<h3>معلومات من الإنترنت</h3>${W.info.items.length?kv(W.info.items):`<p class="mut">ملقيناش معلومات كفاية.</p>`}<p class="mut">${(W.info.sources||[]).map(x=>`<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title||x.url)}</a>`).join(" • ")}</p><p class="mut">معلومات عامة من الإنترنت للتأكد بس.</p>`:"";
+const STS=()=>`<select id="st"><option value="">اختر</option>${[16,32,64,128,256,512,1024].map(r=>`<option ${r==W.st?"selected":""}>${r}</option>`).join("")}</select>`;
+function Dt(){
+ if(W.manual&&W.infoDone)return `<div class="card"><h2>معلومات الجهاز</h2>${kv([["اسم الجهاز",W.full],["السيريال",W.ser],["الرام",W.ram?W.ram+" GB":""],["الذاكرة",W.st?W.st+" GB":""]].filter(x=>x[1]).map(x=>({label:x[0],value:x[1]})))}${infoHtml()}</div>`;
+ if(W.manual)return `<div class="card"><h2>بيانات الجهاز</h2><p class="mut">كمّل بيانات الجهاز وإحنا هنجيبلك كل المعلومات عنه.</p><label>السيريال</label><input id="se" value="${esc(W.ser)}"><label>اسم الجهاز كامل</label><input id="fn" placeholder="مثال: Infinix Smart 9" value="${esc(W.full)}"><div class="row"><div><label>الرام (GB)</label>${RS()}</div><div><label>الذاكرة (GB)</label>${STS()}</div></div></div>`;
+ const mis=mism(),nd=!W.brand||!W.model||!W.ram;
+ return `<div class="card"><h2>تفاصيل الجهاز</h2>${mis.map(m=>`<div class="warn">تحذير: ${m}. راجع الأرقام قبل الشراء.</div>`).join("")}${mis.length?"":`<p style="color:var(--ok);font-weight:600">✔ اتقرت البيانات بنجاح</p>`}<h3>تفاصيل</h3>${kv(W.items)}${nd?`<h3>بيانات ناقصة (مش مكتوبة على الكرتونة)</h3>${DL()}`+(W.brand?"":`<label>الشركة</label><input id="br" list="bl">`)+(W.model?"":`<label>الموديل</label><input id="mo">`)+(W.ram?"":`<label>الرام (GB)</label>${RS()}`):""}</div>`}
+
 function save(){const g=i=>{const e=$("#"+i);return e?e.value.trim():null},set=(i,k)=>{const v=g(i);if(v!==null)W[k]=v};
- if(W.s==1){set("br","brand");set("mo","model");set("ra","ram");set("us","use");set("se","ser");set("st","st")}}
+ if(W.s==1){set("br","brand");set("mo","model");set("ra","ram");set("se","ser");set("st","st");set("fn","full")}}
 const nz=v=>(v||"").replace(/[\s-]/g,"").toUpperCase();
 function mism(){const m=[],a=nz(W.ser),b=nz(W.serD),bs=[W.b1,W.b2].filter(Boolean),ds=[W.i1,W.i2].filter(Boolean);
  if(a&&b&&a!==b)m.push("السيريال على الكرتونة مش نفس السيريال اللي طلع من الجهاز");
@@ -142,10 +145,16 @@ async function scanDev(){const M=["بنقرا بيانات الكرتونة…",
  try{const r=await fetch("/api/scan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({box:W.img.x,ussd:W.img.c})}),d=await r.json();if(!r.ok)throw d;
  const b=d.box||{},u=d.ussd||{};if(!(b.items||[]).length&&!b.model&&!b.brand)throw 0;
  W.items=b.items||[];W.brand=guessBrand(b.brand);W.model=b.model||"";W.ram=b.ram||"";W.st=b.storage||"";W.ser=b.serial||"";W.b1=b.imei1||"";W.b2=b.imei2||"";W.i1=u.imei1||"";W.i2=u.imei2||"";W.serD=u.serial||"";W.manual=false;W.info=null;
- clearInterval(t);W.s=1;render()}catch(e){clearInterval(t);$a.innerHTML=`<div class="card"><h2>فشلت قراءة العلبة</h2><p>أعد تحميل الصورة، أو اكتب السيريال واسم الجهاز والموديل والرام والذاكرة بإيدك.</p><div class="row"><button class="sec" onclick="W.img.x=null;W.s=0;render()">إعادة تحميل الصورة</button><button onclick="W.manual=true;W.items=[];W.info=null;W.s=1;render()">كتابة البيانات</button></div></div>`}}
-async function getInfo(){save();if(!W.brand||!W.model)return toast("اكتب اسم الجهاز والموديل");W.info="load";Wz(cur());
- try{const r=await fetch("/api/info",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({brand:W.brand,model:W.model,ram:W.ram,storage:W.st})}),d=await r.json();if(!r.ok)throw d;W.info=d}catch(e){W.info="err"}Wz(cur())}
-function n1(){save();if(!W.brand||!W.model||!W.ram)return toast("كمّل الشركة والموديل والرام");W.s=2;render()}
+ clearInterval(t);W.s=1;render()}catch(e){clearInterval(t);$a.innerHTML=`<div class="card"><h2>فشلت قراءة العلبة</h2><p>أعد تحميل الصورة، أو كمّل بيانات يدوي.</p><div class="row"><button class="sec" onclick="W.img.x=null;W.s=0;render()">إعادة تحميل الصورة</button><button onclick="W.manual=true;W.items=[];W.info=null;W.infoDone=false;W.s=1;render()">كمّل بيانات يدوي</button></div></div>`}}
+async function getInfo(){$a.innerHTML=`<div class="card ld"><div class="spin"></div><h2>بنجيب معلومات الجهاز</h2><p class="mut">ممكن ياخد لحد دقيقة…</p></div>`;
+ try{const r=await fetch("/api/info",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({brand:W.brand,model:W.model,ram:W.ram,storage:W.st})}),d=await r.json();if(!r.ok)throw d;W.info=d}catch(e){W.info="err"}
+ W.infoDone=true;Wz(cur())}
+function n1(){save();
+ if(W.manual){if(W.infoDone){W.s=2;render();return}
+  const p=(W.full||"").split(/\s+/).filter(Boolean);if(p.length<2)return toast("اكتب اسم الجهاز كامل، مثال: Infinix Smart 9");
+  if(!W.ram||!W.st)return toast("اختار الرام والذاكرة");
+  W.brand=guessBrand(p[0]);W.model=p.slice(1).join(" ");return getInfo()}
+ if(!W.brand||!W.model||!W.ram)return toast("كمّل الشركة والموديل والرام");W.s=2;render()}
 function n2(){const req=["screen","body","bat","rep","fp","cus"];if(req.some(k=>!W.a[k]))return toast("جاوب الأسئلة الأساسية (الشاشة، الظهر، البطارية، الصيانة، البصمة، الجمارك)");if(W.a.rep==="آه"&&!W.a.what)return toast("حدد إيه اللي اتغيّر");calc()}
 function ans(k,o,multi){if(multi){const a=W.a[k]||[];W.a[k]=a.includes(o)?a.filter(x=>x!==o):[...a,o]}else W.a[k]=o;Wz(cur())}
 function pic(k,el){const f=el.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const c=document.createElement("canvas"),sc=Math.min(1,(k=="x"||k=="c"?1280:400)/im.width);c.width=im.width*sc;c.height=im.height*sc;c.getContext("2d").drawImage(im,0,0,c.width,c.height);W.img[k]=c.toDataURL("image/jpeg",k=="x"||k=="c"?.8:.6);save();Wz(cur())};im.src=r.result};r.readAsDataURL(f)}
