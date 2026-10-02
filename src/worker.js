@@ -1,5 +1,6 @@
 let GKEY, TKEY, MODEL = "gemini-3.5-flash-lite";
 const cache = new Map();
+const MAXSPREAD = 1000; // أقصى فرق بين الحد الأدنى والأقصى (جنيه)
 const COND = [
   { key: "excellent", ar: "ممتاز / كسر زيرو بالعلبة (لم يُستعمل تقريباً)", q: "حالة ممتازة كسر زيرو بالعلبة" },
   { key: "good", ar: "جيد أو به خدوش بسيطة", q: "حالة جيدة خدوش بسيطة" },
@@ -31,13 +32,13 @@ function buildPrompt(d, c, results) {
 نتائج البحث:
 ${src}
 
-المطلوب: من الأسعار المذكورة صراحةً في النتائج أعلاه فقط، استخرج مدى السعر بالجنيه المصري (min وmax) للجهاز في الحالة المطلوبة فقط.
+المطلوب: من الأسعار المذكورة صراحةً في النتائج أعلاه فقط، استخرج قائمة بسعر كل إعلان مطابق للجهاز في الحالة المطلوبة، بالجنيه المصري، رقم واحد لكل إعلان.
 القواعد:
 - اعتمد فقط على الإعلانات التي تتطابق حالتها مع الحالة المطلوبة. للحالة الجيدة يمكن قبول الإعلان الذي لا يذكر حالة الجهاز، أما للممتاز أو الصيانة فيجب أن يذكر الإعلان ذلك صراحةً.
 - تجاهل سعر الجهاز الجديد وأسعار الدول الأخرى وأي عملة غير الجنيه المصري، وتجاهل الإعلانات لجهاز أو رام مختلف.
 - تجاهل الأسعار الشاذة (الأعلى أو الأقل بكثير من باقي الأسعار).
-- لا تخمّن أبداً: لو لا توجد أسعار كافية ضع null.
-أجب بـ JSON فقط بهذا الشكل: {"min":0,"max":0} أو null`;
+- لا تخمّن أبداً: لو لا توجد أسعار ضع قائمة فارغة.
+أجب بـ JSON فقط بهذا الشكل: {"prices":[0,0,0]}`;
 }
 
 async function askGemini(prompt) {
@@ -52,11 +53,23 @@ async function askGemini(prompt) {
   const j = await r.json();
   if (!r.ok) throw new Error("gemini: " + JSON.stringify(j));
   const text = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("\n").trim();
-  if (text === "null") return null;
   const m = text.match(/\{[\s\S]*\}/);
   if (!m) throw new Error("no json. الرد كان: " + text.slice(0, 300));
   const v = JSON.parse(m[0]);
-  return v && +v.min > 0 && +v.max >= +v.min ? { min: +v.min, max: +v.max } : null;
+  return Array.isArray(v.prices) ? v.prices.map(Number).filter(x => x > 0) : [];
+}
+
+// أضيق مدى فيه أكبر عدد من الأسعار، بحيث الفرق لا يزيد عن MAXSPREAD
+function tight(prices) {
+  const p = [...prices].sort((a, b) => a - b);
+  let best = null;
+  for (let i = 0; i < p.length; i++) {
+    let j = i;
+    while (j + 1 < p.length && p[j + 1] - p[i] <= MAXSPREAD) j++;
+    const n = j - i + 1;
+    if (!best || n > best.n) best = { n, min: p[i], max: p[j] };
+  }
+  return best && best.n >= 2 ? { min: best.min, max: best.max } : null;
 }
 
 async function getRanges(d) {
@@ -65,8 +78,9 @@ async function getRanges(d) {
   const hit = cache.get(key);
   if (hit && now - hit.t < 864e5) return hit.v;
   const results = await tavily(d, c);
-  const range = results.length ? await askGemini(buildPrompt(d, c, results)) : null;
-  const out = { ranges: { excellent: null, good: null, repaired: null, [COND[c].key]: range }, sources: results.length, cond: COND[c].key };
+  const prices = results.length ? await askGemini(buildPrompt(d, c, results)) : [];
+  const range = tight(prices);
+  const out = { ranges: { excellent: null, good: null, repaired: null, [COND[c].key]: range }, sources: results.length, prices, cond: COND[c].key };
   cache.set(key, { t: now, v: out });
   return out;
 }
@@ -97,7 +111,7 @@ export default {
       const q = u.searchParams;
       try {
         const r = await getRanges({ brand: q.get("brand") || "Realme", model: q.get("model") || "C55", ram: q.get("ram") || "8", cond: q.get("c") || "1", customs: "", notes: [] });
-        return T("الحالة: " + r.cond + "\nعدد نتائج البحث: " + r.sources + "\n" + JSON.stringify(r.ranges[r.cond]));
+        return T("الحالة: " + r.cond + "\nعدد نتائج البحث: " + r.sources + "\nالأسعار المستخرجة: " + r.prices.join(", ") + "\nالمدى: " + JSON.stringify(r.ranges[r.cond]));
       } catch (e) { return T("خطأ: " + e.message, 500); }
     }
     return new Response("Not found", { status: 404 });
