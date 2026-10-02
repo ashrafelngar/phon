@@ -149,6 +149,27 @@ async function info(d) {
   return { items: items(v.items).slice(0, 40), sources: res.slice(0, 3).map(x => ({ title: t2(x.title, 80), url: x.url })) };
 }
 
+const INSPECTPROMPT = `أنت خبير فحص موبايلات مستعملة. الصورة المسماة front هي وش الجهاز والشاشة مطفية، والمسماة back هي ظهر الجهاز.
+افحص ما هو ظاهر في الصور فقط ولا تخمّن ما لا يظهر. لو الصور غير واضحة أو ليست لموبايل أو الشاشة مضاءة في صورة الوش فاجعل valid=false واكتب السبب بالعربية في reason.
+حدد grade: excellent (ممتاز: لا توجد أي خدوش أو علامات ظاهرة)، very_good (جيد جداً: خدوش أو علامات خفيفة جداً بالكاد تظهر)، good (جيد: خدوش أو علامات استعمال واضحة بدون كسر)، poor (ضعيف: كسر أو شرخ أو انبعاج أو تلف واضح).
+notes: كل ملاحظة ظاهرة (كسر، شرخ، خدوش، انبعاج، تقشير دهان، بقع أو ظلال على الشاشة، تلف في عدسة الكاميرا، علامات في الإطار وغيرها) كعنصر {"area":"المكان مثل الشاشة أو الظهر أو الإطار أو الكاميرا","issue":"وصف قصير بالعربية","severity":"low أو medium أو high"}. لو لا توجد ملاحظات اترك القائمة فارغة.
+summary: جملة عربية واحدة.
+أجب JSON فقط: {"valid":true,"reason":"","grade":"","notes":[],"summary":""}`;
+
+async function inspect(d) {
+  const parts = [{ text: INSPECTPROMPT }];
+  for (const [label, url] of [["front:", d.front], ["back:", d.back]]) {
+    const m = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(url || "");
+    if (!m) throw new Error("missing image");
+    parts.push({ text: label }, { inline_data: { mime_type: m[1], data: m[2] } });
+  }
+  const v = await gem(parts);
+  if (v.valid === false) return { valid: false, reason: t2(v.reason, 200) || "الصور مش واضحة" };
+  if (!["excellent", "very_good", "good", "poor"].includes(v.grade)) throw new Error("bad grade");
+  const notes = (Array.isArray(v.notes) ? v.notes : []).map(n => ({ area: t2(n && n.area, 40), issue: t2(n && n.issue, 140), severity: ["low", "medium", "high"].includes(n && n.severity) ? n.severity : "low" })).filter(n => n.issue).slice(0, 12);
+  return { valid: true, grade: v.grade, notes, summary: t2(v.summary, 200) };
+}
+
 const J = (o, c = 200) => new Response(JSON.stringify(o), { status: c, headers: { "content-type": "application/json; charset=utf-8" } });
 const T = (t, c = 200) => new Response(t, { status: c, headers: { "content-type": "text/plain; charset=utf-8" } });
 
@@ -175,6 +196,12 @@ export default {
       if (!GKEY) return J({ error: "المفتاح غير مضبوط" }, 500);
       try { return J(await scan(await request.json())); }
       catch (e) { console.error(e.message); return J({ error: "فشل قراءة الصور" }, 500); }
+    }
+    if (u.pathname === "/api/inspect" && request.method === "POST") {
+      GKEY = env.GEMINI_API_KEY; if (env.MODEL) MODEL = env.MODEL;
+      if (!GKEY) return J({ error: "المفتاح غير مضبوط" }, 500);
+      try { return J(await inspect(await request.json())); }
+      catch (e) { console.error(e.message); return J({ error: "فشل فحص الصور" }, 500); }
     }
     if (u.pathname === "/api/info" && request.method === "POST") {
       if (!setup(env)) return J({ error: "المفاتيح غير مضبوطة" }, 500);
