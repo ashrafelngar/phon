@@ -96,11 +96,27 @@ async function getRanges(d) {
 const luhn = s => { let t = 0; for (let i = 0; i < 15; i++) { let d = +s[14 - i]; if (i % 2) { d *= 2; if (d > 9) d -= 9; } t += d; } return t % 10 === 0; };
 const imei = v => { const d = String(v || "").replace(/\D/g, ""); return d.length === 15 && luhn(d) ? d : ""; };
 const ser = v => String(v || "").replace(/[\s-]/g, "").toUpperCase().slice(0, 30);
-const txt = v => String(v || "").trim().slice(0, 60);
-const SCANPROMPT = `اقرأ بيانات جهاز موبايل من الصور المرفقة. الصورة المسماة box هي كرتونة الجهاز (ملصق البيانات)، والمسماة ussd هي شاشة الكود *#06# من الجهاز نفسه.
-استخرج فقط ما هو مكتوب بوضوح ولا تخمّن أبداً، وضع "" لأي حقل غير ظاهر. أرقام IMEI من 15 رقم.
-brand والموديل بالأحرف اللاتينية كما هي مكتوبة، ram رقم بالـGB فقط، storage بالـGB فقط، made تاريخ التصنيع إن وجد.
-أجب بـ JSON فقط: {"box":{"brand":"","model":"","ram":"","storage":"","color":"","serial":"","imei1":"","imei2":"","made":""},"ussd":{"imei1":"","imei2":"","serial":""}}`;
+const t2 = (v, n) => String(v || "").trim().slice(0, n);
+const digits = v => String(v || "").replace(/\D/g, "");
+const items = a => (Array.isArray(a) ? a : []).map(x => ({ label: t2(x && x.label, 120), value: t2(x && x.value, 300) })).filter(x => x.label || x.value).slice(0, 80);
+const SCANPROMPT = `اقرأ كل ما هو مكتوب على ملصق كرتونة جهاز موبايل (الصورة المسماة box)، والصورة المسماة ussd هي شاشة الكود *#06# من الجهاز نفسه.
+المطلوب 1) items: كل سطر أو بيان مكتوب على الكرتونة بلا استثناء، بنفس ترتيبه وبنفس كلماته تماماً كما هو مكتوب (بدون تعديل أو ترجمة أو تلخيص). لو للبيان عنوان ضعه في label وقيمته في value، ولو لا يوجد عنوان ضع label فارغاً والنص كله في value. لا تحدد حقولاً مسبقة: الكرتونة قد تحتوي مواصفات كثيرة أو قليلة، اكتب الموجود فقط.
+2) box: brand وmodel وram (رقم GB فقط) وstorage (رقم GB فقط) وserial وimei1 وimei2 من الكرتونة، وضع "" لما لا يظهر.
+3) ussd: imei1 وimei2 وserial من شاشة *#06#، وضع "" لما لا يظهر.
+لا تخمّن أبداً. أجب JSON فقط: {"items":[{"label":"","value":""}],"box":{"brand":"","model":"","ram":"","storage":"","serial":"","imei1":"","imei2":""},"ussd":{"imei1":"","imei2":"","serial":""}}`;
+
+async function gem(parts) {
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
+    method: "POST",
+    headers: { "x-goog-api-key": GKEY, "content-type": "application/json" },
+    body: JSON.stringify({ generationConfig: { temperature: 0, responseMimeType: "application/json" }, contents: [{ parts }] })
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error("gemini: " + JSON.stringify(j));
+  const m = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("").match(/\{[\s\S]*\}/);
+  if (!m) throw new Error("no json");
+  return JSON.parse(m[0]);
+}
 
 async function scan(d) {
   const parts = [{ text: SCANPROMPT }];
@@ -110,23 +126,27 @@ async function scan(d) {
     parts.push({ text: label }, { inline_data: { mime_type: m[1], data: m[2] } });
     return true;
   };
-  add("box:", d.box);
-  if (!add("ussd:", d.ussd)) throw new Error("no ussd image");
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
-    method: "POST",
-    headers: { "x-goog-api-key": GKEY, "content-type": "application/json" },
-    body: JSON.stringify({ generationConfig: { temperature: 0, responseMimeType: "application/json" }, contents: [{ parts }] })
-  });
-  const j = await r.json();
-  if (!r.ok) throw new Error("gemini: " + JSON.stringify(j));
-  const text = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("");
-  const m = text.match(/\{[\s\S]*\}/);
-  if (!m) throw new Error("no json");
-  const v = JSON.parse(m[0]), b = v.box || {}, u = v.ussd || {};
+  if (!add("box:", d.box) || !add("ussd:", d.ussd)) throw new Error("missing image");
+  const v = await gem(parts), b = v.box || {}, u = v.ussd || {};
   return {
-    box: { brand: txt(b.brand), model: txt(b.model), ram: String(b.ram || "").replace(/\D/g, ""), storage: String(b.storage || "").replace(/\D/g, ""), color: txt(b.color), serial: ser(b.serial), imei1: imei(b.imei1), imei2: imei(b.imei2), made: txt(b.made) },
+    box: { brand: t2(b.brand, 60), model: t2(b.model, 60), ram: digits(b.ram), storage: digits(b.storage), serial: ser(b.serial), imei1: imei(b.imei1), imei2: imei(b.imei2), items: items(v.items) },
     ussd: { imei1: imei(u.imei1), imei2: imei(u.imei2), serial: ser(u.serial) }
   };
+}
+
+async function info(d) {
+  const r = await fetch("https://api.tavily.com/search", {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: "Bearer " + TKEY },
+    body: JSON.stringify({ query: `${d.brand} ${d.model} specifications release date battery display camera processor`, search_depth: "basic", max_results: 6 })
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error("tavily: " + JSON.stringify(j));
+  const res = j.results || [];
+  if (!res.length) return { items: [], sources: [] };
+  const src = res.map((x, i) => `[${i + 1}] ${x.title}\n${(x.content || "").slice(0, 600)}`).join("\n\n");
+  const v = await gem([{ text: `من نتائج البحث التالية فقط، استخرج أهم مواصفات الجهاز ${d.brand} ${d.model} (الشاشة، المعالج، الكاميرا، البطارية، نظام التشغيل، تاريخ الإصدار). لا تخمّن، واترك القائمة فارغة لو لا توجد معلومات. حتى 8 عناصر.\n\n${src}\n\nأجب JSON فقط: {"items":[{"label":"الشاشة","value":"..."}]}` }]);
+  return { items: items(v.items).slice(0, 8), sources: res.slice(0, 3).map(x => ({ title: t2(x.title, 80), url: x.url })) };
 }
 
 const J = (o, c = 200) => new Response(JSON.stringify(o), { status: c, headers: { "content-type": "application/json; charset=utf-8" } });
@@ -155,6 +175,11 @@ export default {
       if (!GKEY) return J({ error: "المفتاح غير مضبوط" }, 500);
       try { return J(await scan(await request.json())); }
       catch (e) { console.error(e.message); return J({ error: "فشل قراءة الصور" }, 500); }
+    }
+    if (u.pathname === "/api/info" && request.method === "POST") {
+      if (!setup(env)) return J({ error: "المفاتيح غير مضبوطة" }, 500);
+      try { const d = await request.json(); if (!d.brand || !d.model) return J({ error: "بيانات ناقصة" }, 400); return J(await info(d)); }
+      catch (e) { console.error(e.message); return J({ error: "فشل" }, 500); }
     }
     if (u.pathname === "/test") {
       if (!setup(env)) return T("ناقص مفتاح: تأكد من GEMINI_API_KEY و TAVILY_API_KEY في Cloudflare", 500);
