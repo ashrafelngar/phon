@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>مُقيِّم – تسعير الموبايلات المستعملة</title>
+<title>فاحص الموبيل المستعمل</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#F4F6F8;--card:#fff;--ink:#14263B;--mut:#5E6C7C;--line:#DDE3EA;--pri:#14263B;--acc:#F2A900;--ok:#16895A;--bad:#C63D3D;--on:#fff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -11,7 +11,6 @@
 body{margin:0;font-family:Cairo,Tahoma,sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
 .wrap{max-width:720px;margin:0 auto;padding:14px}
 header{display:flex;align-items:center;justify-content:space-between;padding:6px 0 12px}
-.logo{font-weight:800;font-size:22px}.logo i{font-style:normal;color:var(--acc)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
 h2{margin:0 0 10px;font-size:20px}h3{margin:14px 0 6px;font-size:16px}
 label{display:block;font-size:14px;font-weight:600;margin:10px 0 4px}
@@ -37,7 +36,25 @@ button.full{width:100%}button.sm{padding:6px 10px;font-size:13px}button.bad{back
 .tbl-s{overflow-x:auto}
 #toast{position:fixed;inset-inline:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:12px 14px;border-radius:12px;display:none;z-index:9;text-align:center}
 .pre{white-space:pre-wrap;background:var(--bg);border-radius:10px;padding:10px;font-size:13px}
-</style></head><body><div class="wrap"><header><div class="logo">مُقيِّم<i>.</i></div><div id="top"></div></header><main id="app"></main></div><div id="toast"></div>
+.brand{display:flex;align-items:center;gap:10px}.brand b{font-size:17px;font-weight:800;line-height:1.2}.lg{width:42px;height:42px;border-radius:12px;object-fit:cover;background:var(--card)}
+#pill{text-align:center}.pl{display:inline-block;font-size:12px;font-weight:600;background:var(--acc);color:#14263B;padding:2px 14px;border-radius:0 0 12px 12px}.pl.x{background:var(--bad);color:#fff}
+main{padding-bottom:76px}.greet{font-weight:800;font-size:20px;margin:4px 2px 12px}.greet small{display:block;font-weight:400;color:var(--mut);font-size:14px}
+.hero{display:flex;align-items:center;gap:14px;width:100%;text-align:right;padding:20px 18px;border:0;border-radius:28px;color:#fff;background:linear-gradient(135deg,#14263B,#1F4E79 70%,#2A7F62);box-shadow:0 10px 24px rgba(20,38,59,.28);position:relative;overflow:hidden;margin-bottom:12px}
+.hero:before{content:"";position:absolute;inset-inline-start:-30px;top:-30px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.08)}
+.hero .ic{flex:none;width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.16);display:grid;place-items:center}.hero .ic svg{width:38px;height:38px}
+.hero .tx{flex:1}.hero b{display:block;font-size:19px}.hero small{display:block;font-weight:400;opacity:.85;font-size:13px}
+.hero .go{flex:none;width:38px;height:38px;border-radius:50%;background:var(--acc);color:#14263B;display:grid;place-items:center;font-size:20px}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tile{display:flex;flex-direction:column;align-items:center;gap:4px;padding:18px 8px;border-radius:24px;background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.tile .ic2{width:48px;height:48px;border-radius:50%;background:var(--bg);display:grid;place-items:center}.tile .ic2 svg{width:26px;height:26px}.tile b{font-size:15px}.tile em{font-style:normal;font-size:12px;color:var(--mut)}
+.fab{position:fixed;left:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:56px;height:56px;padding:0;border-radius:50%;background:#1FA855;color:#fff;display:none;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(0,0,0,.3);z-index:8}.fab svg{width:28px;height:28px}
+.hd{display:flex;align-items:center;gap:10px;margin-bottom:12px}.hd h2{margin:0}
+.rc{background:var(--card);border:1px solid var(--line);border-inline-start:5px solid var(--c);border-radius:16px;padding:12px 14px;margin-bottom:10px}
+.r1{display:flex;justify-content:space-between;gap:8px;align-items:center}.chip{font-size:12px;font-weight:600;color:var(--c);border:1px solid var(--c);border-radius:99px;padding:0 10px;white-space:nowrap}.r2{font-size:12px;color:var(--mut);margin-bottom:8px}
+.r3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center}.r3 div{background:var(--bg);border-radius:10px;padding:6px 2px;font-weight:800;font-size:16px}.r3 span{display:block;font-weight:400;font-size:11px;color:var(--mut)}.r3 .mid{color:var(--ok)}
+.spin{width:54px;height:54px;border:5px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:sp 1s linear infinite;margin:10px auto}@keyframes sp{to{transform:rotate(360deg)}}.ld{text-align:center;padding:30px 16px}.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:14px}.bar i{display:block;height:100%;width:3%;background:var(--acc);transition:width 1s}
+.empty{text-align:center;padding:30px 10px;color:var(--mut);font-size:40px}.empty p{font-size:15px;margin:6px 0 12px}
+</style></head><body><div class="wrap"><div id="pill"></div><header><div class="brand"><img class="lg" src="https://i.ibb.co/NnbZtfYF/1790930556682.jpg" alt=""><b>فاحص الموبيل المستعمل</b></div><div id="top"></div></header><main id="app"></main></div><div id="toast"></div><button id="fab" class="fab" onclick="help()" aria-label="مساعدة"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3C7 3 3 6.6 3 11c0 2 .8 3.8 2.2 5.2L4 21l4.6-1.8c1 .3 2.2.5 3.4.5 5 0 9-3.6 9-8s-4-8-9-8z"/><circle cx="8.5" cy="11" r="1.2" fill="#1FA855"/><circle cx="12" cy="11" r="1.2" fill="#1FA855"/><circle cx="15.5" cy="11" r="1.2" fill="#1FA855"/></svg></button>
 <script>
 const $=s=>document.querySelector(s),ADMIN_PHONE="01102394162",WA="201102394162";
 const DB={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
@@ -60,6 +77,8 @@ const Q=[["الشكل",[["screen","حالة الشاشة",["سليمة","خدو�
 ["الجمارك والضريبة",[["cus","الجهاز مسجّل والجمارك مدفوعة؟",["آه","لأ"],0]]]];
 function render(){const u=cur();
  $("#top").innerHTML=u?`<button class="sec sm" onclick="logout()">خروج</button>`:"";
+ const pl=$("#pill"),fb=$("#fab");
+ if(u&&!u.admin){const d=daysLeft(u);pl.innerHTML=d>0?`<span class="pl">نسخة مجانية • باقي ${d==1?"يوم":d==2?"يومين":d+" أيام"}</span>`:`<span class="pl x">انتهت النسخة المجانية</span>`;fb.style.display="flex"}else{pl.innerHTML="";fb.style.display="none"}
  if(!u&&view!=="auth")view="auth";
  if(!u)return A();
  if(u.ban){$a.innerHTML=`<div class="card"><h2>الحساب محظور</h2><p>تواصل مع الأدمن على ${ADMIN_PHONE}</p></div>`;return}
@@ -81,33 +100,48 @@ function signup(){const d={name:$("#nm").value.trim(),shop:$("#sh").value.trim()
  sms(()=>{const us=users();d.id=Date.now();d.exp=Date.now()+7*864e5;d.ban=0;us.push(d);saveU();me=d.id;DB.set("me",me);view="home";toast("تم إنشاء الحساب – 7 أيام مجاناً");render()},"أدخل كود التحقق")}
 function forgot(){const p=$("#ph").value.trim(),u=users().find(x=>x.phone===p);if(!u)return toast("اكتب رقمك الأول");
  sms(()=>{const n=prompt("كلمة السر الجديدة (6 حروف على الأقل)");if(n&&n.length>=6){u.pass=n;saveU();toast("تم تغيير كلمة السر")}},"كود استرجاع كلمة السر")}
-function trial(u){const d=daysLeft(u);return d>0?`<div class="banner"><span>نسخة تجريبية – باقي ${d} ${d<=10?"يوم":"يوم"}</span>${d<=2?"<span>التجربة على وشك الانتهاء</span>":""}</div>`:`<div class="banner exp"><span>انتهت التجربة – تواصل مع الأدمن للاشتراك</span><button class="sm" style="background:#fff;color:#14263B" onclick="location.href='https://wa.me/${WA}'">${ADMIN_PHONE}</button></div>`}
-function H(u){$a.innerHTML=trial(u)+`<button class="big main" onclick="start()">تقييم جهاز أندرويد<small>ادخل البيانات وارفع الصور واعرف سعر الشراء</small></button>
-<button class="big" onclick="toast('تقييم الآيفون قريباً')">تقييم جهاز آيفون<small>قريباً</small></button>
-<button class="big" onclick="help()">مساعدة<small>كلّم الدعم على واتساب</small></button>
-<button class="big" onclick="view='hist';render()">سجل التقييمات<small>${hist().filter(h=>h.uid===u.id).length} تقييم</small></button>`}
+function trial(u){const d=daysLeft(u);return d>0?"":`<div class="banner exp"><span>انتهت التجربة – تواصل مع الأدمن للاشتراك</span><button class="sm" style="background:#fff;color:#14263B" onclick="location.href='https://wa.me/${WA}'">${ADMIN_PHONE}</button></div>`}
+const AND='<svg viewBox="0 0 48 48"><path d="M10 22a14 14 0 0 1 28 0z" fill="#fff"/><rect x="10" y="25" width="28" height="16" rx="4" fill="#fff"/><path d="M15 9l4 5M33 9l-4 5" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/><circle cx="19" cy="17" r="1.8" fill="#1F4E79"/><circle cx="29" cy="17" r="1.8" fill="#1F4E79"/></svg>';
+const IPH='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="7" y="2" width="10" height="20" rx="3"/><path d="M10.5 5h3" stroke-linecap="round"/></svg>';
+const HIS='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+function H(u){const n=hist().filter(h=>h.uid===u.id).length;$a.innerHTML=trial(u)+`<div class="greet">أهلاً ${u.name} 👋<small>${u.shop}</small></div>
+<button class="hero" onclick="start()"><span class="ic">${AND}</span><span class="tx"><b>تقييم جهاز أندرويد</b><small>ادخل البيانات وارفع الصور واعرف سعر الشراء</small></span><span class="go">←</span></button>
+<div class="tiles"><button class="tile" onclick="toast('تقييم الآيفون قريباً')"><span class="ic2">${IPH}</span><b>تقييم آيفون</b><em>قريباً</em></button>
+<button class="tile" onclick="view='hist';render()"><span class="ic2">${HIS}</span><b>سجل التقييمات</b><em>${n} تقييم</em></button></div>`}
 function help(){const u=cur();location.href=`https://wa.me/${WA}?text=`+encodeURIComponent(`مرحباً، أنا ${u.name} (${u.phone}) وأحتاج مساعدة.`)}
-function start(){const u=cur();if(daysLeft(u)<=0)return toast("انتهت التجربة. تواصل مع الأدمن للاشتراك.");W={s:0,brand:"Samsung",model:"",ram:"8",use:"",img:{},i1:"",i2:"",ser:"",b1:"",b2:"",a:{},mk:["","","","","",""],note:""};view="wiz";render()}
+function start(){const u=cur();if(daysLeft(u)<=0)return toast("انتهت التجربة. تواصل مع الأدمن للاشتراك.");W={s:0,brand:"",model:"",ram:"8",use:"أقل من 6 شهور",img:{},i1:"",i2:"",ser:"",serD:"",b1:"",b2:"",a:{},mk:["","","","","",""],note:"",nobox:false,meta:{}};view="wiz";render()}
 function Wz(u){const s=W.s,bar=`<div class="steps">${[0,1,2].map(i=>`<span class="${i<=s?"d":""}"></span>`).join("")}</div>`;
- const nav=(n)=>`<div class="row" style="margin-top:14px">${s?`<button class="sec" onclick="W.s--;save();render()">رجوع</button>`:`<button class="sec" onclick="view='home';render()">إلغاء</button>`}<button onclick="${n}">${s==2?"احسب السعر":"التالي"}</button></div>`;
- if(s==0){const ms=BR[W.brand]||[];$a.innerHTML=bar+`<div class="card"><h2>بيانات الجهاز</h2><label>الشركة</label><select id="br" onchange="W.brand=this.value;W.model='';Wz()">${Object.keys(BR).map(b=>`<option ${b==W.brand?"selected":""}>${b}</option>`).join("")}</select>
- <label>الموديل</label><select id="mo"><option value="">اختر…</option>${ms.map(m=>`<option ${m==W.model?"selected":""}>${m}</option>`).join("")}</select><input id="mo2" placeholder="موديل مش في القايمة؟ اكتبه هنا" value="${ms.includes(W.model)?"":W.model}" style="margin-top:6px">
- <div class="row"><div><label>الرام (GB)</label><select id="ra">${[2,3,4,6,8,12,16].map(r=>`<option ${r==W.ram?"selected":""}>${r}</option>`).join("")}</select></div><div><label>الاستعمال</label><select id="us">${["أقل من 6 شهور","6 – 12 شهر","1 – 2 سنة","أكتر من سنتين"].map(r=>`<option ${r==W.use?"selected":""}>${r}</option>`).join("")}</select></div></div></div>`+nav("n0()")}
- if(s==1){const P=[["f","صورة وش الجهاز"],["b","صورة ظهر الجهاز"],["x","صورة الكرتونة (السيريال وIMEI)"],["c","صورة شاشة *#06# من الجهاز"]];
- $a.innerHTML=bar+`<div class="card"><h2>الصور والبيانات</h2><div class="row" style="flex-wrap:wrap">${P.map(([k,t])=>`<div class="ph" style="flex:1 1 45%">${t}<input type="file" accept="image/*" onchange="pic('${k}',this)" style="margin-top:6px">${W.img[k]?`<img src="${W.img[k]}">`:""}</div>`).join("")}</div>
- <p class="mut">لو مفيش كرتونة ارفع صورة *#06# بس. اكتب الأرقام من الصور:</p>
- <label>IMEI الشريحة 1 (من الجهاز *#06#)</label><input id="i1" inputmode="numeric" maxlength="15" value="${W.i1}"><label>IMEI الشريحة 2</label><input id="i2" inputmode="numeric" maxlength="15" value="${W.i2}">
- <label>IMEI الشريحة 1 من الكرتونة (لو فيه)</label><input id="b1" inputmode="numeric" maxlength="15" value="${W.b1}"><label>IMEI الشريحة 2 من الكرتونة</label><input id="b2" inputmode="numeric" maxlength="15" value="${W.b2}"><label>السيريال</label><input id="se" value="${W.ser}"></div>`+nav("n1()")}
+ const nav=(n)=>`<div class="row" style="margin-top:14px">${s?`<button class="sec" onclick="W.s--;save();render()">رجوع</button>`:`<button class="sec" onclick="view='home';render()">إلغاء</button>`}<button onclick="${n}">${s==2?"احسب السعر":s==0?"افحص الجهاز":"التالي"}</button></div>`;
+ if(s==0){const P=[["x","صورة بيانات الكرتونة","الملصق اللي عليه السيريال وIMEI والمواصفات"],["c","صورة شاشة *#06#","اتصل بالكود *#06# وصوّر الشاشة"],["f","صورة وش الجهاز (اختياري)",""],["b","صورة ظهر الجهاز (اختياري)",""]];
+ $a.innerHTML=bar+`<div class="card"><h2>فحص الجهاز</h2><p class="mut">ارفع الصور وإحنا هنقرا بيانات الجهاز تلقائياً.</p>${P.map(([k,t,d])=>`<div class="ph" style="margin-bottom:10px"><b>${t}</b><div class="mut">${d}</div><input type="file" accept="image/*" onchange="pic('${k}',this)" style="margin-top:6px">${W.img[k]?`<img src="${W.img[k]}">`:""}</div>`).join("")}
+ <label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="checkbox" style="width:auto" ${W.nobox?"checked":""} onchange="W.nobox=this.checked"> مفيش كرتونة مع الجهاز</label></div>`+nav("n0()")}
+ if(s==1){const mis=mism(),x=W.meta||{},ex=[x.storage&&"التخزين "+x.storage+"GB",x.color,x.made&&"تصنيع "+x.made].filter(Boolean).join(" • ");
+ $a.innerHTML=bar+`<div class="card"><h2>تفاصيل الجهاز</h2>${mis.map(m=>`<div class="warn">تحذير: ${m}. راجع الأرقام قبل الشراء.</div>`).join("")}${W.scanned&&!mis.length?`<p style="color:var(--ok);font-weight:600">✔ البيانات اتقرت من الصور. راجعها وصحّح أي حاجة غلط.</p>`:""}
+ <label>الشركة</label><input id="br" list="bl" value="${W.brand}"><datalist id="bl">${Object.keys(BR).map(b=>`<option>${b}</option>`).join("")}</datalist><label>الموديل</label><input id="mo" value="${W.model}">${ex?`<p class="mut">${ex}</p>`:""}
+ <div class="row"><div><label>الرام (GB)</label><select id="ra">${[2,3,4,6,8,12,16].map(r=>`<option ${r==W.ram?"selected":""}>${r}</option>`).join("")}</select></div><div><label>الاستعمال</label><select id="us">${["أقل من 6 شهور","6 – 12 شهر","1 – 2 سنة","أكتر من سنتين"].map(r=>`<option ${r==W.use?"selected":""}>${r}</option>`).join("")}</select></div></div>
+ <h3>من الكرتونة</h3><label>السيريال</label><input id="se" value="${W.ser}"><div class="row"><div><label>IMEI 1</label><input id="b1" inputmode="numeric" maxlength="15" value="${W.b1}"></div><div><label>IMEI 2</label><input id="b2" inputmode="numeric" maxlength="15" value="${W.b2}"></div></div>
+ <h3>من الجهاز (*#06#)</h3><label>السيريال (لو ظاهر)</label><input id="sd" value="${W.serD}"><div class="row"><div><label>IMEI 1</label><input id="i1" inputmode="numeric" maxlength="15" value="${W.i1}"></div><div><label>IMEI 2</label><input id="i2" inputmode="numeric" maxlength="15" value="${W.i2}"></div></div></div>`+nav("n1()")}
  if(s==2){$a.innerHTML=bar+`<div class="card"><h2>حالة الجهاز</h2>${Q.map(([g,qs])=>`<h3>${g}</h3>`+qs.filter(q=>!q[4]||W.a.rep==="آه").map(q=>`<div class="q"><b>${q[1]}</b><div class="opts" style="margin-top:6px">${q[2].map((o,i)=>`<button class="${q[5]?(W.a[q[0]]||[]).includes(o)?"on":"":W.a[q[0]]===o?"on":""}" onclick="ans('${q[0]}','${o}',${q[5]?1:0})">${o}</button>`).join("")}</div></div>`).join("")).join("")}</div>`+nav("n2()")}
 }
 function save(){const g=i=>{const e=$("#"+i);return e?e.value.trim():null};
- if(W.s==0){const m=g("mo2")||g("mo");if(m!==null)W.model=m;if(g("ra"))W.ram=g("ra");if(g("us"))W.use=g("us")}
- if(W.s==1&&$("#i1")){W.i1=g("i1");W.i2=g("i2");W.b1=g("b1");W.b2=g("b2");W.ser=g("se")}}
-function n0(){save();if(!W.model)return toast("اختار الموديل");W.s=1;render()}
-function n1(){save();if(!W.img.f||!W.img.b)return toast("ارفع صورة الوش والظهر");if(!W.img.c&&!W.i1)return toast("ارفع صورة *#06# أو اكتب IMEI");W.s=2;render()}
+ if(W.s==1&&$("#mo")){W.brand=g("br");W.model=g("mo");W.ram=g("ra");W.use=g("us");W.ser=g("se");W.serD=g("sd");W.b1=g("b1");W.b2=g("b2");W.i1=g("i1");W.i2=g("i2")}}
+const nz=v=>(v||"").replace(/[\s-]/g,"").toUpperCase();
+function mism(){const m=[],a=nz(W.ser),b=nz(W.serD),bs=[W.b1,W.b2].filter(Boolean),ds=[W.i1,W.i2].filter(Boolean);
+ if(a&&b&&a!==b)m.push("السيريال على الكرتونة مش نفس السيريال اللي طلع من الجهاز");
+ if(bs.length&&ds.length&&(bs.length>1&&ds.length>1?ds.some(x=>!bs.includes(x)):!ds.some(x=>bs.includes(x))))m.push("IMEI الكرتونة مختلف عن IMEI الجهاز");return m}
+const guessBrand=b=>{b=(b||"").trim();return Object.keys(BR).find(k=>k.toLowerCase()===b.toLowerCase())||b};
+function n0(){if(!W.img.c)return toast("ارفع صورة شاشة *#06#");if(!W.nobox&&!W.img.x)return toast("ارفع صورة الكرتونة أو علّم إن مفيش كرتونة");scanDev()}
+async function scanDev(){const M=["بنقرا بيانات الكرتونة…","بنقرا الـ IMEI من الجهاز…","بنقارن السيريال والأرقام…"];
+ $a.innerHTML=`<div class="card ld"><div class="spin"></div><h2>جاري فحص الجهاز</h2><p class="mut" id="lm">${M[0]}</p><div class="bar"><i id="lb"></i></div></div>`;
+ let k=0;const t=setInterval(()=>{k++;const m=$("#lm"),b=$("#lb");if(m)m.textContent=M[Math.min(2,Math.floor(k/5))];if(b)b.style.width=Math.min(95,k*7)+"%"},1000);
+ try{const r=await fetch("/api/scan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({box:W.nobox?null:W.img.x,ussd:W.img.c})}),d=await r.json();if(!r.ok)throw d;
+ const b=d.box||{},u=d.ussd||{};W.brand=guessBrand(b.brand)||W.brand;W.model=b.model||W.model;if(b.ram)W.ram=b.ram;
+ W.ser=b.serial||"";W.b1=b.imei1||"";W.b2=b.imei2||"";W.i1=u.imei1||"";W.i2=u.imei2||"";W.serD=u.serial||"";W.meta={storage:b.storage,color:b.color,made:b.made};W.scanned=true;
+ clearInterval(t);W.s=1;render()}catch(e){clearInterval(t);$a.innerHTML=`<div class="card"><h2>مقدرناش نقرا الصور</h2><p>جرّب صور أوضح، أو كمّل وادخل البيانات بإيدك.</p><div class="row"><button class="sec" onclick="W.s=0;render()">رجوع</button><button onclick="W.s=1;render()">كمّل يدوي</button></div></div>`}}
+function n1(){save();if(!W.brand||!W.model)return toast("اكتب الشركة والموديل");W.s=2;render()}
 function n2(){const req=["screen","body","bat","rep","fp","cus"];if(req.some(k=>!W.a[k]))return toast("جاوب الأسئلة الأساسية (الشاشة، الظهر، البطارية، الصيانة، البصمة، الجمارك)");if(W.a.rep==="آه"&&!W.a.what)return toast("حدد إيه اللي اتغيّر");calc()}
 function ans(k,o,multi){if(multi){const a=W.a[k]||[];W.a[k]=a.includes(o)?a.filter(x=>x!==o):[...a,o]}else W.a[k]=o;Wz(cur())}
-function pic(k,el){const f=el.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const c=document.createElement("canvas"),sc=Math.min(1,400/im.width);c.width=im.width*sc;c.height=im.height*sc;c.getContext("2d").drawImage(im,0,0,c.width,c.height);W.img[k]=c.toDataURL("image/jpeg",.6);save();Wz(cur())};im.src=r.result};r.readAsDataURL(f)}
+function pic(k,el){const f=el.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const c=document.createElement("canvas"),sc=Math.min(1,(k=="x"||k=="c"?1280:400)/im.width);c.width=im.width*sc;c.height=im.height*sc;c.getContext("2d").drawImage(im,0,0,c.width,c.height);W.img[k]=c.toDataURL("image/jpeg",k=="x"||k=="c"?.8:.6);save();Wz(cur())};im.src=r.result};r.readAsDataURL(f)}
 function cond(){const a=W.a;if(a.rep==="آه"||a.orig==="غير أصلية"||a.screen==="مكسورة")return 2;const clean=a.screen==="سليمة"&&a.body==="سليم"&&a.lines!=="آه"&&a.bat==="+90"&&(a.acc||[]).includes("كرتونة أصلية");return clean?0:1}
 async function calc(){const c=cond(),a=W.a,n=[];if(a.bat==="أقل من 80")n.push("البطارية أقل من 80%");if((a.acc||[]).length<3)n.push("الملحقات ناقصة");if(a.rep==="آه")n.push("تم فتحه أو صيانته");
  $a.innerHTML=`<div class="card"><h2>بندوّر على أسعار السوق…</h2><p class="mut">بنراجع إعلانات المستعمل في مصر. ممكن ياخد حتى دقيقة.</p></div>`;
@@ -115,12 +149,13 @@ async function calc(){const c=cond(),a=W.a,n=[];if(a.bat==="أقل من 80")n.pu
  const g=d.ranges[["excellent","good","repaired"][c]];if(!g)return fail("مفيش بيانات كافية عن سعر الجهاز ده في السوق. جرّب موديل أو رام تاني.");
  const mn=g.min,mx=g.max,av=g.avg,u=cur();hist().push({uid:u.id,t:Date.now(),dev:W.brand+" "+W.model+" "+W.ram+"GB",c,mn,mx,av});DB.set("h",mem.hist);W.res={c,base:g.base,mn,mx,av};W.s=3;Rs()}catch(e){fail("تعذّر جلب الأسعار. افتح الموقع من رابط السيرفر وراجع الاتصال.")}}
 function fail(m){$a.innerHTML=`<div class="card"><h2>مش قادرين نحسب السعر</h2><p>${m}</p><div class="row"><button class="sec" onclick="W.s=2;render()">رجوع</button><button onclick="calc()">حاول تاني</button></div></div>`}
-function Rs(){const r=W.res,mis=W.b1&&W.i1&&(W.b1!==W.i1||(W.b2&&W.i2&&W.b2!==W.i2));
+function Rs(){const r=W.res,mis=mism();
  $a.innerHTML=`<div class="card"><h2>${W.brand} ${W.model} – ${W.ram}GB</h2><p class="mut">الحالة: ${["ممتازة","جيدة","تمت صيانته"][r.c]} • أقل سعر في الإعلانات ${fmt(r.base)} ج</p>
- ${mis?`<div class="warn">تحذير: IMEI الكرتونة مختلف عن IMEI الجهاز. راجع الأرقام قبل الشراء.</div>`:""}${W.a.cus==="لأ"?`<div class="warn">الجهاز غير مسجّل أو عليه رسوم جمارك.</div>`:""}
+ ${mis.map(m=>`<div class="warn">تحذير: ${m}. راجع الأرقام قبل الشراء.</div>`).join("")}${W.a.cus==="لأ"?`<div class="warn">الجهاز غير مسجّل أو عليه رسوم جمارك.</div>`:""}
  <div class="price"><div><span>الحد الأدنى</span><b>${fmt(r.mn)}</b></div><div><span>المتوسط</span><b>${fmt(r.av)}</b></div><div><span>الحد الأقصى</span><b>${fmt(r.mx)}</b></div></div><p class="mut">الأسعار محسوبة من أقل سعر في إعلانات السوق المتقاربة بعد الخصم.</p>
  <button class="full" onclick="view='home';render()">رجوع للرئيسية</button></div>`}
-function Hs(u){const h=hist().filter(x=>x.uid===u.id).reverse();$a.innerHTML=trial(u)+`<div class="card"><h2>سجل التقييمات</h2>${h.length?`<div class="tbl-s"><table class="tbl"><tr><th>التاريخ</th><th>الجهاز</th><th>من</th><th>إلى</th></tr>${h.map(x=>`<tr><td>${new Date(x.t).toLocaleDateString("ar-EG")}</td><td>${x.dev}</td><td>${fmt(x.mn)}</td><td>${fmt(x.mx)}</td></tr>`).join("")}</table></div>`:`<p class="mut">لسه معملتش أي تقييم. ابدأ أول تقييم من الرئيسية.</p>`}<button class="sec full" style="margin-top:10px" onclick="view='home';render()">رجوع</button></div>`}
+const CN=["ممتاز","جيدة","صيانة"],CC=["#16895A","#C98A00","#C63D3D"];
+function Hs(u){const h=hist().filter(x=>x.uid===u.id).reverse();$a.innerHTML=trial(u)+`<div class="hd"><button class="sec sm" onclick="view='home';render()">→ رجوع</button><h2>سجل التقييمات</h2></div>`+(h.length?h.map(x=>`<div class="rc" style="--c:${CC[x.c]||CC[1]}"><div class="r1"><b>${x.dev}</b><span class="chip">${CN[x.c]||"-"}</span></div><div class="r2">${new Date(x.t).toLocaleDateString("ar-EG",{day:"numeric",month:"short",year:"numeric"})}</div><div class="r3"><div><span>الأدنى</span>${fmt(x.mn)}</div><div class="mid"><span>المتوسط</span>${fmt(x.av)}</div><div><span>الأقصى</span>${fmt(x.mx)}</div></div></div>`).join(""):`<div class="empty">📋<p>لسه معملتش أي تقييم</p><button onclick="start()">ابدأ أول تقييم</button></div>`)}
 function Ad(u){const us=users().filter(x=>!x.admin),lg=logs().slice(-15).reverse();$a.innerHTML=`<div class="card"><h2>لوحة الأدمن</h2>${us.length?us.map(x=>`<div class="q"><b>${x.name}</b> – ${x.shop}<br><span class="mut">${x.phone} • باقي ${Math.max(0,daysLeft(x))} يوم ${x.ban?"• محظور":""}</span><div class="row" style="margin-top:6px"><button class="sm" onclick="adm(${x.id},7)">+7 أيام</button><button class="sm sec" onclick="adm(${x.id},-1)">-1 يوم</button><button class="sm ${x.ban?"sec":"bad"}" onclick="adm(${x.id},'ban')">${x.ban?"فك الحظر":"حظر"}</button></div></div>`).join(""):`<p class="mut">مفيش مستخدمين لسه.</p>`}</div>
  <div class="card"><h3>سجل العمليات</h3>${lg.length?lg.map(l=>`<div class="mut">${new Date(l.t).toLocaleString("ar-EG")} – ${l.m}</div>`).join(""):`<p class="mut">لا توجد عمليات.</p>`}</div>`}
 function adm(id,a){const x=users().find(u=>u.id===id);let m;if(a==="ban"){x.ban=x.ban?0:1;m=(x.ban?"حظر ":"فك حظر ")+x.name}else{x.exp+=a*864e5;m=(a>0?"زوّد ":"خصم ")+Math.abs(a)+" يوم لـ "+x.name}saveU();logs().push({t:Date.now(),m});DB.set("l",mem.log);Ad(cur())}
