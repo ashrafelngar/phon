@@ -123,7 +123,7 @@ const kv=a=>a.length?`<div class="kv">${a.map(i=>`<div><span>${esc(i.label)}</sp
 const USE=["أقل من 6 شهور","6 – 12 شهر","1 – 2 سنة","أكتر من سنتين"];
 const DL=()=>`<datalist id="bl">${Object.keys(BR).map(b=>`<option>${b}</option>`).join("")}</datalist>`;
 const RS=()=>`<select id="ra"><option value="">اختر</option>${[2,3,4,6,8,12,16].map(r=>`<option ${r==W.ram?"selected":""}>${r}</option>`).join("")}</select>`;
-const infoHtml=()=>W.info==="load"?`<div class="ld"><div class="spin"></div><p class="mut">بنجيب معلومات الجهاز…</p></div>`:W.info==="err"?`<p class="mut">مقدرناش نجيب معلومات. كمّل بالبيانات اللي كتبتها.</p>`:W.info?`<h3>معلومات من الإنترنت</h3>${W.info.items.length?kv(W.info.items):`<p class="mut">ملقيناش معلومات كفاية.</p>`}<p class="mut">${(W.info.sources||[]).map(x=>`<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title||x.url)}</a>`).join(" • ")}</p><p class="mut">معلومات عامة من الإنترنت للتأكد بس.</p>`:"";
+const infoHtml=()=>W.info==="load"?`<div class="ld"><div class="spin"></div><p class="mut">بنجيب معلومات الجهاز…</p></div>`:W.info==="err"?`<p class="mut">مقدرناش نجيب معلومات. كمّل بالبيانات اللي كتبتها.</p>`:W.info?`<h3>التفاصيل</h3>${W.info.items.length?kv(W.info.items):`<p class="mut">ملقيناش معلومات كفاية.</p>`}`:"";
 const STS=()=>`<select id="st"><option value="">اختر</option>${[16,32,64,128,256,512,1024].map(r=>`<option ${r==W.st?"selected":""}>${r}</option>`).join("")}</select>`;
 function Dt(){
  if(W.manual&&W.infoDone)return `<div class="card"><h2>معلومات الجهاز</h2>${kv([["اسم الجهاز",W.full],["السيريال",W.ser],["الرام",W.ram?W.ram+" GB":""],["الذاكرة",W.st?W.st+" GB":""]].filter(x=>x[1]).map(x=>({label:x[0],value:x[1]})))}${infoHtml()}</div>`;
