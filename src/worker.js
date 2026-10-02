@@ -93,6 +93,42 @@ async function getRanges(d) {
   return out;
 }
 
+const luhn = s => { let t = 0; for (let i = 0; i < 15; i++) { let d = +s[14 - i]; if (i % 2) { d *= 2; if (d > 9) d -= 9; } t += d; } return t % 10 === 0; };
+const imei = v => { const d = String(v || "").replace(/\D/g, ""); return d.length === 15 && luhn(d) ? d : ""; };
+const ser = v => String(v || "").replace(/[\s-]/g, "").toUpperCase().slice(0, 30);
+const txt = v => String(v || "").trim().slice(0, 60);
+const SCANPROMPT = `اقرأ بيانات جهاز موبايل من الصور المرفقة. الصورة المسماة box هي كرتونة الجهاز (ملصق البيانات)، والمسماة ussd هي شاشة الكود *#06# من الجهاز نفسه.
+استخرج فقط ما هو مكتوب بوضوح ولا تخمّن أبداً، وضع "" لأي حقل غير ظاهر. أرقام IMEI من 15 رقم.
+brand والموديل بالأحرف اللاتينية كما هي مكتوبة، ram رقم بالـGB فقط، storage بالـGB فقط، made تاريخ التصنيع إن وجد.
+أجب بـ JSON فقط: {"box":{"brand":"","model":"","ram":"","storage":"","color":"","serial":"","imei1":"","imei2":"","made":""},"ussd":{"imei1":"","imei2":"","serial":""}}`;
+
+async function scan(d) {
+  const parts = [{ text: SCANPROMPT }];
+  const add = (label, url) => {
+    const m = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(url || "");
+    if (!m) return false;
+    parts.push({ text: label }, { inline_data: { mime_type: m[1], data: m[2] } });
+    return true;
+  };
+  add("box:", d.box);
+  if (!add("ussd:", d.ussd)) throw new Error("no ussd image");
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
+    method: "POST",
+    headers: { "x-goog-api-key": GKEY, "content-type": "application/json" },
+    body: JSON.stringify({ generationConfig: { temperature: 0, responseMimeType: "application/json" }, contents: [{ parts }] })
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error("gemini: " + JSON.stringify(j));
+  const text = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("");
+  const m = text.match(/\{[\s\S]*\}/);
+  if (!m) throw new Error("no json");
+  const v = JSON.parse(m[0]), b = v.box || {}, u = v.ussd || {};
+  return {
+    box: { brand: txt(b.brand), model: txt(b.model), ram: String(b.ram || "").replace(/\D/g, ""), storage: String(b.storage || "").replace(/\D/g, ""), color: txt(b.color), serial: ser(b.serial), imei1: imei(b.imei1), imei2: imei(b.imei2), made: txt(b.made) },
+    ussd: { imei1: imei(u.imei1), imei2: imei(u.imei2), serial: ser(u.serial) }
+  };
+}
+
 const J = (o, c = 200) => new Response(JSON.stringify(o), { status: c, headers: { "content-type": "application/json; charset=utf-8" } });
 const T = (t, c = 200) => new Response(t, { status: c, headers: { "content-type": "text/plain; charset=utf-8" } });
 
@@ -113,6 +149,12 @@ export default {
         const r = await getRanges(d);
         return J({ ranges: r.ranges });
       } catch (e) { console.error(e.message); return J({ error: "فشل جلب الأسعار" }, 500); }
+    }
+    if (u.pathname === "/api/scan" && request.method === "POST") {
+      GKEY = env.GEMINI_API_KEY; if (env.MODEL) MODEL = env.MODEL;
+      if (!GKEY) return J({ error: "المفتاح غير مضبوط" }, 500);
+      try { return J(await scan(await request.json())); }
+      catch (e) { console.error(e.message); return J({ error: "فشل قراءة الصور" }, 500); }
     }
     if (u.pathname === "/test") {
       if (!setup(env)) return T("ناقص مفتاح: تأكد من GEMINI_API_KEY و TAVILY_API_KEY في Cloudflare", 500);
