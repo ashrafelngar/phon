@@ -138,15 +138,15 @@ async function info(d) {
   const r = await fetch("https://api.tavily.com/search", {
     method: "POST",
     headers: { "content-type": "application/json", authorization: "Bearer " + TKEY },
-    body: JSON.stringify({ query: `${d.brand} ${d.model} specifications release date battery display camera processor`, search_depth: "basic", max_results: 6 })
+    body: JSON.stringify({ query: `${d.brand} ${d.model} full specifications release date price gsmarena`, search_depth: "advanced", max_results: 8 })
   });
   const j = await r.json();
   if (!r.ok) throw new Error("tavily: " + JSON.stringify(j));
   const res = j.results || [];
   if (!res.length) return { items: [], sources: [] };
-  const src = res.map((x, i) => `[${i + 1}] ${x.title}\n${(x.content || "").slice(0, 600)}`).join("\n\n");
-  const v = await gem([{ text: `من نتائج البحث التالية فقط، استخرج أهم مواصفات الجهاز ${d.brand} ${d.model} (الشاشة، المعالج، الكاميرا، البطارية، نظام التشغيل، تاريخ الإصدار). لا تخمّن، واترك القائمة فارغة لو لا توجد معلومات. حتى 8 عناصر.\n\n${src}\n\nأجب JSON فقط: {"items":[{"label":"الشاشة","value":"..."}]}` }]);
-  return { items: items(v.items).slice(0, 8), sources: res.slice(0, 3).map(x => ({ title: t2(x.title, 80), url: x.url })) };
+  const src = res.map((x, i) => `[${i + 1}] ${x.title}\n${(x.content || "").slice(0, 1500)}`).join("\n\n");
+  const v = await gem([{ text: `من نتائج البحث التالية فقط، استخرج كل المعلومات الصحيحة المتاحة عن الجهاز ${d.brand} ${d.model}، حتى لو بدت غير مهمة: الاسم الكامل، تاريخ الإصدار، سعر الإطلاق، الأبعاد والوزن، الشاشة (الحجم والنوع والدقة والتردد)، المعالج والـGPU، الرام والذاكرة الداخلية المتاحة، الكاميرات الخلفية والأمامية، البطارية والشحن، نظام التشغيل، الشبكات وعدد الشرائح، الاتصال (واي فاي، بلوتوث، NFC)، المنافذ، الحساسات، الألوان، مقاومة الماء والغبار، وأي معلومة أخرى. قواعد: اكتب فقط ما هو مذكور في النتائج، ولو تعارضت المصادر في معلومة فلا تذكرها، ولا تخمّن، وبلا تكرار. كل عنصر label عربي قصير وvalue بقيمته. حتى 40 عنصر.\n\n${src}\n\nأجب JSON فقط: {"items":[{"label":"تاريخ الإصدار","value":"..."}]}` }]);
+  return { items: items(v.items).slice(0, 40), sources: res.slice(0, 3).map(x => ({ title: t2(x.title, 80), url: x.url })) };
 }
 
 const J = (o, c = 200) => new Response(JSON.stringify(o), { status: c, headers: { "content-type": "application/json; charset=utf-8" } });
