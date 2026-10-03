@@ -194,6 +194,67 @@ async function inspect(d) {
 const J = (o, c = 200) => new Response(JSON.stringify(o), { status: c, headers: { "content-type": "application/json; charset=utf-8" } });
 const T = (t, c = 200) => new Response(t, { status: c, headers: { "content-type": "text/plain; charset=utf-8" } });
 
+// ---------- تأكيد رقم الموبايل برسالة SMS (SMS Misr) ----------
+const enc = new TextEncoder();
+const b64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+async function hmac(secret, msg) {
+  const k = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return b64u(await crypto.subtle.sign("HMAC", k, enc.encode(msg)));
+}
+const same = (a, b) => { if (a.length !== b.length) return false; let r = 0; for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i); return r === 0; };
+const normPhone = v => { const m = /^(?:0|20)?(1[0125]\d{8})$/.exec(String(v || "").replace(/\D/g, "")); return m ? "20" + m[1] : ""; };
+const otpSecret = env => env.OTP_SECRET || (env.GEMINI_API_KEY || "") + (env.TAVILY_API_KEY || "");
+const sentAt = new Map(), sentIp = new Map(), tries = new Map();
+const recent = (m, k, ms) => { if (m.size > 5000) m.clear(); const now = Date.now(), a = (m.get(k) || []).filter(t => now - t < ms); m.set(k, a); return a; };
+
+async function sendSms(env, phone, code) {
+  const qs = new URLSearchParams({ environment: env.SMSMISR_ENV === "2" ? "2" : "1", username: env.SMSMISR_USER, password: env.SMSMISR_PASS, sender: env.SMSMISR_SENDER, mobile: phone, template: env.SMSMISR_TEMPLATE, otp: code });
+  const r = await fetch("https://smsmisr.com/api/OTP/?" + qs, { method: "POST" });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !["4901", "1901"].includes(String(j.code))) throw new Error("sms: " + JSON.stringify(j));
+}
+
+const emailNorm = v => { v = String(v || "").trim().toLowerCase(); return v.length <= 120 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v) ? v : ""; };
+async function sendMail(env, to, code) {
+  const r = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: { "api-key": env.BREVO_API_KEY, "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify({ sender: { name: "فاحص الموبيل المستعمل", email: env.MAIL_FROM }, to: [{ email: to }], subject: "كود التحقق: " + code,
+      htmlContent: `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif;text-align:right"><h2>فاحص الموبيل المستعمل</h2><p>كود التحقق الخاص بك:</p><p style="font-size:32px;font-weight:bold;letter-spacing:6px">${code}</p><p>الكود صالح لمدة 5 دقائق. لا تشاركه مع أحد.</p></div>` })
+  });
+  if (!r.ok) throw new Error("mail: " + r.status + " " + (await r.text()).slice(0, 200));
+}
+
+async function otpSend(request, env) {
+  const b = await request.json(), wantMail = b.email !== undefined, id = wantMail ? emailNorm(b.email) : normPhone(b.phone);
+  if (!id) return J({ error: wantMail ? "اكتب إيميل صحيح" : "اكتب رقم موبايل مصري صحيح" }, 400);
+  const ip = request.headers.get("cf-connecting-ip") || "x", a = recent(sentAt, id, 6e5), c = recent(sentIp, ip, 36e5);
+  if (a.length >= 3 || c.length >= 10) return J({ error: "محاولات كتير، جرّب بعد شوية" }, 429);
+  a.push(Date.now()); c.push(Date.now());
+  const code = String(100000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900000)), exp = Date.now() + 3e5;
+  const token = exp + "." + await hmac(otpSecret(env), `${id}|${exp}|${code}`);
+  if (wantMail && env.BREVO_API_KEY && env.MAIL_FROM) {
+    try { await sendMail(env, id, code); } catch (e) { console.error(e.message); return J({ error: "فشل إرسال الإيميل، جرّب تاني" }, 502); }
+    return J({ token });
+  }
+  if (!wantMail && env.SMSMISR_USER && env.SMSMISR_PASS && env.SMSMISR_SENDER && env.SMSMISR_TEMPLATE) {
+    try { await sendSms(env, id, code); } catch (e) { console.error(e.message); return J({ error: "فشل إرسال الرسالة، جرّب تاني" }, 502); }
+    return J({ token });
+  }
+  if (env.OTP_DEMO === "1") return J({ token, demo: code });
+  return J({ error: wantMail ? "خدمة الإيميل مش متفعّلة لسه" : "خدمة الرسائل مش متفعّلة لسه" }, 503);
+}
+
+async function otpVerify(request, env) {
+  const b = await request.json(), id = b.email !== undefined ? emailNorm(b.email) : normPhone(b.phone), code = String(b.code), [exp, sig] = String(b.token || "").split(".");
+  if (!id || !/^\d{6}$/.test(code) || !exp || !sig) return J({ ok: false, error: "بيانات ناقصة" }, 400);
+  if (+exp < Date.now()) return J({ ok: false, error: "الكود انتهت صلاحيته، اطلب كود جديد" }, 400);
+  if (tries.size > 5000) tries.clear();
+  const n = (tries.get(sig) || 0) + 1; tries.set(sig, n);
+  if (n > 5) return J({ ok: false, error: "محاولات كتير، اطلب كود جديد" }, 429);
+  return same(await hmac(otpSecret(env), `${id}|${exp}|${code}`), sig) ? J({ ok: true }) : J({ ok: false, error: "الكود غلط" }, 400);
+}
+
 function setup(env) {
   GKEY = env.GEMINI_API_KEY; TKEY = env.TAVILY_API_KEY;
   if (env.MODEL) MODEL = env.MODEL;
@@ -218,6 +279,8 @@ export default {
       try { return J(await scan(await request.json())); }
       catch (e) { console.error(e.message); return J({ error: "فشل قراءة الصور" }, 500); }
     }
+    if (u.pathname === "/api/otp/send" && request.method === "POST") { try { return await otpSend(request, env); } catch (e) { console.error(e.message); return J({ error: "فشل" }, 500); } }
+    if (u.pathname === "/api/otp/verify" && request.method === "POST") { try { return await otpVerify(request, env); } catch (e) { console.error(e.message); return J({ error: "فشل" }, 500); } }
     if (u.pathname === "/api/inspect" && request.method === "POST") {
       GKEY = env.GEMINI_API_KEY; if (env.MODEL) MODEL = env.MODEL;
       if (!GKEY) return J({ error: "المفتاح غير مضبوط" }, 500);
