@@ -56,6 +56,15 @@ main{padding-bottom:76px}.greet{font-weight:800;font-size:20px;margin:4px 2px 12
 .seg{display:flex;background:var(--bg);border-radius:12px;padding:4px;gap:4px}.seg button{flex:1;background:transparent;color:var(--ink);padding:10px 6px;border-radius:9px;font-weight:600}.seg button.on{background:var(--pri);color:var(--on)}.seg button.on.ok{background:var(--ok);color:#fff}.seg button.on.no{background:var(--bad);color:#fff}
 .fq{padding:12px 0;border-top:1px solid var(--line)}.fq:first-of-type{border-top:0}.fq label.q{margin:0 0 8px}.oth{margin-top:8px}
 .sec h3{display:flex;align-items:center;gap:8px;margin:0 0 2px}.sec h3 i{font-style:normal;width:24px;height:24px;border-radius:50%;background:var(--acc);color:#14263B;display:grid;place-items:center;font-size:13px}
+body.auth header{display:none}.au{padding-top:6px}
+.h0{text-align:center;position:relative;padding:18px 8px 6px;margin-bottom:12px}.h0:before,.h0:after{content:"";position:absolute;border-radius:50%;z-index:-1;filter:blur(2px)}.h0:before{width:150px;height:150px;background:rgba(242,169,0,.16);top:-30px;inset-inline-start:-30px}.h0:after{width:110px;height:110px;background:rgba(31,78,121,.14);top:40px;inset-inline-end:-24px}
+.lg0{width:84px;height:84px;border-radius:24px;object-fit:cover;border:3px solid var(--acc);box-shadow:0 10px 24px rgba(20,38,59,.25);background:var(--card)}.bn{font-weight:800;font-size:15px;color:var(--mut);margin-top:8px}
+.wl{margin:6px 0 4px;font-size:34px;font-weight:800;line-height:1.3;background:linear-gradient(90deg,#F2A900,#E4572E 45%,#1F7A8C);-webkit-background-clip:text;background-clip:text;color:transparent}.wl i{font-style:normal;color:var(--acc);-webkit-text-fill-color:var(--acc);font-size:20px;vertical-align:middle}.wl em{font-style:normal;display:inline-block;-webkit-text-fill-color:initial;animation:wv 2.4s ease-in-out infinite;transform-origin:70% 70%}
+@keyframes wv{0%,60%,100%{transform:rotate(0)}10%,30%{transform:rotate(16deg)}20%,40%{transform:rotate(-10deg)}50%{transform:rotate(8deg)}}
+.sb{margin:0 auto 12px;max-width:340px;color:var(--mut);font-size:15px;line-height:1.7}.ch0{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}.ch0 span{background:var(--card);border:1px solid var(--line);border-radius:99px;padding:3px 12px;font-size:12px;font-weight:600}
+.fm{padding:18px;border-radius:22px;box-shadow:0 12px 30px rgba(20,38,59,.1)}
+.fl{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:0 12px;margin-bottom:10px}.fl:focus-within{border-color:var(--acc);box-shadow:0 0 0 3px rgba(242,169,0,.22)}.fl input{border:0;background:transparent;padding:13px 0;outline:0}.fl input:focus{outline:0}.eye{background:transparent;color:var(--mut);padding:4px 6px;font-size:16px}
+.big1{padding:14px;font-size:16px;border-radius:14px;box-shadow:0 8px 18px rgba(20,38,59,.25)}.sw{text-align:center;margin:14px 0 0;color:var(--mut);font-size:14px}.sw a{font-weight:700}
 .spin{width:54px;height:54px;border:5px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:sp 1s linear infinite;margin:10px auto}@keyframes sp{to{transform:rotate(360deg)}}.ld{text-align:center;padding:30px 16px}.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:14px}.bar i{display:block;height:100%;width:3%;background:var(--acc);transition:width 1s}
 .kv div{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}.kv span{color:var(--mut)}.kv b{text-align:left;word-break:break-word}
 .empty{text-align:center;padding:30px 10px;color:var(--mut);font-size:40px}.empty p{font-size:15px;margin:6px 0 12px}
@@ -74,7 +83,7 @@ const cur=()=>me&&users().find(u=>u.id===me);
 const daysLeft=u=>Math.ceil((u.exp-Date.now())/864e5);
 const fmt=n=>Math.round(n).toLocaleString("en-US");
 const BR={Samsung:["Galaxy A15","Galaxy A25","Galaxy A35","Galaxy A55","Galaxy S23","Galaxy S24"],Xiaomi:["Redmi 12","Redmi Note 12","Redmi Note 13","Poco X6","Xiaomi 13T"],Oppo:["Reno 8","Reno 10","A58","A78","Find X5"],Realme:["C55","C67","11 Pro","12 Pro","GT Neo 5"],Vivo:["Y17s","Y27","V27","V29"],Infinix:["Hot 30","Note 30","Zero 30","Smart 8"],Tecno:["Spark 10","Camon 20","Phantom X2"],Honor:["X7b","X8a","90","Magic5"],Huawei:["Nova 11","P40","Y9a"],Motorola:["G54","Edge 40"],OnePlus:["Nord CE3","11"],Nokia:["G21","C32"]};
-function render(){const u=cur();
+function render(){const u=cur();document.body.classList.toggle("auth",!u);
  $("#top").innerHTML=u?`<button class="sec sm" onclick="logout()">خروج</button>`:"";
  const pl=$("#pill"),fb=$("#fab");
  if(u&&!u.admin){const d=daysLeft(u);pl.innerHTML=d>0?`<span class="pl">نسخة مجانية • باقي ${d==1?"يوم":d==2?"يومين":d+" أيام"}</span>`:`<span class="pl x">انتهت النسخة المجانية</span>`;fb.style.display="flex"}else{pl.innerHTML="";fb.style.display="none"}
@@ -82,14 +91,18 @@ function render(){const u=cur();
  if(!u)return A();
  if(u.ban){$a.innerHTML=`<div class="card"><h2>الحساب محظور</h2><p>تواصل مع الأدمن على ${ADMIN_PHONE}</p></div>`;return}
  ({home:H,wiz:Wz,hist:Hs,admin:Ad}[view]||H)(u);scrollTo(0,0)}
-function A(){const f=`<label>رقم الهاتف</label><input id="ph" inputmode="tel" placeholder="01xxxxxxxxx"><label>كلمة السر</label><input id="pw" type="password">`;
- $a.innerHTML=`<div class="card"><h2>أهلاً بيك يا تاجر</h2><p class="mut">اعرف سعر الشراء المناسب لأي جهاز أندرويد في دقيقتين.</p>
- <div class="tabs"><button class="${tab=="in"?"on":""}" onclick="tab='in';A()">تسجيل دخول</button><button class="${tab=="up"?"on":""}" onclick="tab='up';A()">حساب جديد</button></div>
- ${tab=="up"?`<label>الاسم الشخصي</label><input id="nm"><label>اسم المحل</label><input id="sh"><label>العنوان</label><input id="ad">`:""}${f}
- ${tab=="up"?`<p class="mut">هنبعت كود تحقق SMS على الرقم.</p>`:`<p style="margin:8px 0"><a href="#" onclick="forgot();return false">نسيت كلمة السر؟</a></p>`}
- <button class="full" onclick="${tab=="up"?"signup()":"login()"}">${tab=="up"?"إنشاء حساب":"دخول"}</button></div><div id="otp"></div>`}
-function login(){const p=$("#ph").value.trim(),w=$("#pw").value,u=users().find(x=>x.phone===p&&x.pass===w);if(!u)return toast("الرقم أو كلمة السر غلط");me=u.id;DB.set("me",me);view=u.admin?"admin":"home";render()}
-function logout(){me=null;DB.set("me",null);view="auth";render()}
+function pwT(){const e=$("#pw");e.type=e.type==="password"?"text":"password"}
+function A(){const up=tab=="up",F=(i,ic,ph,ex="")=>`<div class="fl"><span>${ic}</span><input id="${i}" placeholder="${ph}" ${ex}></div>`;
+ $a.innerHTML=`<div class="au"><div class="h0"><img class="lg0" src="https://i.ibb.co/NnbZtfYF/1790930556682.jpg" alt=""><div class="bn">فاحص الموبيل المستعمل</div>
+ <h1 class="wl"><i>✦</i> أهلاً بك <em>👋</em> <i>✦</i></h1><p class="sb">قيّم أجهزتك المستعملة واعرف مواصفات الأجهزة المستعملة وسعر البيع والشراء بسهولة</p>
+ <div class="ch0"><span>📸 فحص بالصور</span><span>📊 أسعار السوق</span><span>🗂️ سجل تقييماتك</span></div></div>
+ <div class="card fm"><div class="seg"><button class="${!up?"on":""}" onclick="tab='in';A()">تسجيل دخول</button><button class="${up?"on":""}" onclick="tab='up';A()">حساب جديد</button></div>
+ <div style="height:14px"></div>${up?F("nm","👤","الاسم الشخصي")+F("sh","🏪","اسم المحل")+F("ad","📍","العنوان"):""}${F("ph","📱","رقم الهاتف",'inputmode="tel"')}
+ <div class="fl"><span>🔒</span><input id="pw" type="password" placeholder="كلمة السر"><button type="button" class="eye" onclick="pwT()" aria-label="إظهار كلمة السر">👁</button></div>
+ ${up?`<p class="mut" style="margin:2px 2px 12px">📩 هنبعت كود تحقق SMS على رقمك.</p>`:`<p style="margin:2px 2px 14px;text-align:left"><a href="#" onclick="forgot();return false">نسيت كلمة السر؟</a></p>`}
+ <button class="full big1" onclick="${up?"signup()":"login()"}">${up?"إنشاء حساب":"دخول"}</button>
+ <p class="sw">${up?`عندك حساب؟ <a href="#" onclick="tab='in';A();return false">سجّل دخول</a>`:`مش عندك حساب؟ <a href="#" onclick="tab='up';A();return false">أنشئ حساب جديد</a>`}</p></div><div id="otp"></div></div>`}
+
 function sms(cb,label){const c=String(Math.floor(1000+Math.random()*9000));toast("كود التحقق (تجريبي): "+c,9000);
  $("#otp").innerHTML=`<div class="card"><h3>${label}</h3><input id="cd" inputmode="numeric" placeholder="كود من 4 أرقام"><button class="full" style="margin-top:8px" id="okb">تأكيد</button></div>`;
  $("#okb").onclick=()=>$("#cd").value.trim()===c?cb():toast("الكود غلط")}
@@ -111,8 +124,8 @@ function help(){const u=cur();location.href=`https://wa.me/${WA}?text=`+encodeUR
 function start(){const u=cur();if(daysLeft(u)<=0)return toast("انتهت التجربة. تواصل مع الأدمن للاشتراك.");W={s:0,brand:"",model:"",ram:"",use:"أقل من 6 شهور",img:{},i1:"",i2:"",ser:"",serD:"",b1:"",b2:"",a:{},mk:["","","","","",""],note:"",items:[],manual:false,info:null,st:""};view="wiz";render()}
 function Wz(u){const s=W.s,bar=`<div class="steps">${[0,1,2,3,4].map(i=>`<span class="${i<=s?"d":""}"></span>`).join("")}</div>`;
  const nav=(n)=>`<div class="row" style="margin-top:14px">${s?`<button class="sec" onclick="W.s--;save();render()">رجوع</button>`:`<button class="sec" onclick="view='home';render()">إلغاء</button>`}<button onclick="${n}">${["افحص الجهاز",W.manual&&!W.infoDone?"التالي":"تسعير الجهاز","ابدأ الفحص","التالي","احسب السعر"][s]}</button></div>`;
- if(s==0){const P=[["x","صورة بيانات الكرتونة","الملصق اللي عليه السيريال وIMEI والمواصفات"],["c","صورة شاشة *#06#","اتصل بالكود *#06# وصوّر الشاشة"]];
- $a.innerHTML=bar+`<div class="card"><h2>فحص الجهاز</h2><p class="mut">ارفع الصورتين وإحنا هنقرا بيانات الجهاز تلقائياً.</p>${P.map(([k,t,d])=>`<div class="ph" style="margin-bottom:10px"><b>${t}</b><div class="mut">${d}</div><input type="file" accept="image/*" onchange="pic('${k}',this)" style="margin-top:6px">${W.img[k]?`<img src="${W.img[k]}">`:""}</div>`).join("")}</div>`+nav("n0()")}
+ if(s==0){const P=[["x","أرفق صورة الكرتونة وتأكد أن جميع البيانات واضحة",""],["c","أرفق صورة للكود *#06#",""]];
+ $a.innerHTML=bar+`<div class="card"><h2>فحص الجهاز</h2><p class="mut">قم بإرفاق الصورتين في إضاءة جيدة حتى تكتمل عملية التحقق بدقة عالية.</p>${P.map(([k,t,d])=>`<div class="ph" style="margin-bottom:10px"><b>${t}</b><div class="mut">${d}</div><input type="file" accept="image/*" onchange="pic('${k}',this)" style="margin-top:6px">${W.img[k]?`<img src="${W.img[k]}">`:""}</div>`).join("")}</div>`+nav("n0()")}
  if(s==1){$a.innerHTML=bar+Dt()+nav("n1()")}
  if(s==2){const P=[["f","أرفق صورة وجه الجهاز مطفي",""],["b","أرفق صورة ظهر الجهاز",""]];
  $a.innerHTML=bar+`<div class="card"><h2>تسعير الجهاز</h2><p class="mut">قم بإرفاق الصور بإضاءة جيدة حتى تكتمل عملية التسعير بدقة.</p>${P.map(([k,t,d])=>`<div class="ph" style="margin-bottom:10px"><b>${t}</b><div class="mut">${d}</div><input type="file" accept="image/*" onchange="pic('${k}',this)" style="margin-top:6px">${W.img[k]?`<img src="${W.img[k]}">`:""}</div>`).join("")}</div>`+nav("n2p()")}
@@ -128,7 +141,7 @@ function Wz(u){const s=W.s,bar=`<div class="steps">${[0,1,2,3,4].map(i=>`<span c
  <div class="card sec"><h3><i>4</i>الجمارك والضريبة</h3>${fq("حالة الجهاز",seg("cus",["مسجل","غير مسجل"],["ok","no"]))}</div>`+nav("n2()")}
 }
 const esc=t=>String(t==null?"":t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const kv=a=>a.length?`<div class="kv">${a.map(i=>`<div><span>${esc(i.label)}</span><b>${esc(i.value)}</b></div>`).join("")}</div>`:"";
+const kv=a=>a.length?`<div class="kv">${a.map(i=>`<div><span>${esc(i.label||(/^((made|assembled|manufactured) in\b|صنع في)/i.test(i.value)?"بلد الصنع":""))}</span><b>${esc(i.value)}</b></div>`).join("")}</div>`:"";
 const USE=["أقل من 6 شهور","6 – 12 شهر","1 – 2 سنة","أكتر من سنتين"];
 const DL=()=>`<datalist id="bl">${Object.keys(BR).map(b=>`<option>${b}</option>`).join("")}</datalist>`;
 const RS=()=>`<select id="ra"><option value="">اختر</option>${[2,3,4,6,8,12,16].map(r=>`<option ${r==W.ram?"selected":""}>${r}</option>`).join("")}</select>`;
@@ -138,7 +151,7 @@ function Dt(){
  if(W.manual&&W.infoDone)return `<div class="card"><h2>معلومات الجهاز</h2>${kv([["اسم الجهاز",W.full],["السيريال",W.ser],["الرام",W.ram?W.ram+" GB":""],["الذاكرة",W.st?W.st+" GB":""]].filter(x=>x[1]).map(x=>({label:x[0],value:x[1]})))}${infoHtml()}</div>`;
  if(W.manual)return `<div class="card"><h2>بيانات الجهاز</h2><p class="mut">كمّل بيانات الجهاز وإحنا هنجيبلك كل المعلومات عنه.</p><label>السيريال</label><input id="se" value="${esc(W.ser)}"><label>اسم الجهاز كامل</label><input id="fn" placeholder="مثال: Infinix Smart 9" value="${esc(W.full)}"><div class="row"><div><label>الرام (GB)</label>${RS()}</div><div><label>الذاكرة (GB)</label>${STS()}</div></div></div>`;
  const mis=mism(),nd=!W.brand||!W.model||!W.ram;
- return `<div class="card"><h2>تفاصيل الجهاز</h2>${mis.map(m=>`<div class="warn">تحذير: ${m}. راجع الأرقام قبل الشراء.</div>`).join("")}${mis.length?"":`<p style="color:var(--ok);font-weight:600">✔ اتقرت البيانات بنجاح</p>`}<h3>تفاصيل</h3>${kv(W.items)}${nd?`<h3>بيانات ناقصة (مش مكتوبة على الكرتونة)</h3>${DL()}`+(W.brand?"":`<label>الشركة</label><input id="br" list="bl">`)+(W.model?"":`<label>الموديل</label><input id="mo">`)+(W.ram?"":`<label>الرام (GB)</label>${RS()}`):""}</div>`}
+ return `<div class="card"><h2>تفاصيل الجهاز</h2>${mis.map(m=>`<div class="warn">تحذير: ${m}. راجع الأرقام قبل الشراء.</div>`).join("")}<h3>تفاصيل</h3>${kv(W.items)}${nd?`<h3>بيانات ناقصة (مش مكتوبة على الكرتونة)</h3>${DL()}`+(W.brand?"":`<label>الشركة</label><input id="br" list="bl">`)+(W.model?"":`<label>الموديل</label><input id="mo">`)+(W.ram?"":`<label>الرام (GB)</label>${RS()}`):""}</div>`}
 
 function save(){const g=i=>{const e=$("#"+i);return e?e.value.trim():null},set=(i,k)=>{const v=g(i);if(v!==null)W[k]=v};
  if(W.s==1){set("br","brand");set("mo","model");set("ra","ram");set("se","ser");set("st","st");set("fn","full")}}
