@@ -98,7 +98,7 @@ function A(){const up=tab=="up",F=(i,ic,ph,ex="")=>`<div class="fl"><span>${ic}<
  <h1 class="wl"><i>✦</i> أهلاً بك <em>👋</em> <i>✦</i></h1><p class="sb">قيّم أجهزتك المستعملة واعرف مواصفات الأجهزة المستعملة وسعر البيع والشراء بسهولة</p>
  <div class="ch0"><span>📸 فحص بالصور</span><span>📊 أسعار السوق</span><span>🗂️ سجل تقييماتك</span></div></div>
  <div class="card fm"><div class="seg"><button class="${!up?"on":""}" onclick="tab='in';A()">تسجيل دخول</button><button class="${up?"on":""}" onclick="tab='up';A()">حساب جديد</button></div>
- <div style="height:14px"></div>${up?F("nm","👤","الاسم الشخصي")+F("sh","🏪","اسم المحل")+F("ad","📍","العنوان"):""}${F("ph","📱","رقم الهاتف",up?'inputmode="tel"':"")}
+ <div style="height:14px"></div>${up?F("nm","👤","الاسم الشخصي")+F("sh","🏪","اسم المحل")+F("ad","📍","العنوان"):""}${F("ph","📱",up?"رقم الهاتف":"رقم الهاتف أو الإيميل",up?'inputmode="tel"':"")}${up?F("em","✉️","الإيميل",'inputmode="email" autocomplete="email"'):""}
  <div class="fl"><span>🔒</span><input id="pw" type="password" placeholder="كلمة السر"><button type="button" class="eye" onclick="pwT()" aria-label="إظهار كلمة السر">👁</button></div>
  <div id="er" class="err"></div>${up?`<p class="mut" style="margin:2px 2px 12px">📩 هنبعت كود تحقق SMS على رقمك.</p>`:`<p style="margin:2px 2px 14px;text-align:left"><a href="#" onclick="forgot();return false">نسيت كلمة السر؟</a></p>`}
  <button class="full big1" onclick="${up?"signup()":"login()"}">${up?"إنشاء حساب":"دخول"}</button>
@@ -106,17 +106,26 @@ function A(){const up=tab=="up",F=(i,ic,ph,ex="")=>`<div class="fl"><span>${ic}<
 
 function err(m){const e=$("#er");if(e)e.textContent=m;toast(m)}
 function login(){const p=$("#ph").value.trim(),w=$("#pw").value;if(!p||!w)return err("اكتب رقم الهاتف وكلمة السر");
- const u=users().find(x=>x.phone===p&&x.pass===w);if(!u)return err("الرقم أو كلمة السر غلط");me=u.id;DB.set("me",me);view=u.admin?"admin":"home";render()}
+ const u=users().find(x=>(x.phone===p||(x.email&&x.email===p.toLowerCase()))&&x.pass===w);if(!u)return err("الرقم أو كلمة السر غلط");me=u.id;DB.set("me",me);view=u.admin?"admin":"home";render()}
 function logout(){me=null;DB.set("me",null);view="auth";render()}
-function sms(cb,label){const c=String(Math.floor(1000+Math.random()*9000));toast("كود التحقق (تجريبي): "+c,9000);
- $("#otp").innerHTML=`<div class="card"><h3>${label}</h3><input id="cd" inputmode="numeric" placeholder="كود من 4 أرقام"><button class="full" style="margin-top:8px" id="okb">تأكيد</button></div>`;
- $("#okb").onclick=()=>$("#cd").value.trim()===c?cb():toast("الكود غلط")}
-function signup(){const d={name:$("#nm").value.trim(),shop:$("#sh").value.trim(),addr:$("#ad").value.trim(),phone:$("#ph").value.trim(),pass:$("#pw").value};
- if(!d.name||!d.shop||!d.addr||!d.phone||d.pass.length<6)return toast("كمّل كل البيانات (كلمة السر 6 حروف على الأقل)");
- if(users().some(u=>u.phone===d.phone))return toast("الرقم ده مسجّل قبل كده");
- sms(()=>{const us=users();d.id=Date.now();d.exp=Date.now()+7*864e5;d.ban=0;us.push(d);saveU();me=d.id;DB.set("me",me);view="home";toast("تم إنشاء الحساب – 7 أيام مجاناً");render()},"أدخل كود التحقق")}
-function forgot(){const p=$("#ph").value.trim(),u=users().find(x=>x.phone===p);if(!u)return toast("اكتب رقمك الأول");
- sms(()=>{const n=prompt("كلمة السر الجديدة (6 حروف على الأقل)");if(n&&n.length>=6){u.pass=n;saveU();toast("تم تغيير كلمة السر")}},"كود استرجاع كلمة السر")}
+const mask=e=>String(e).replace(/^(.).*(@.*)$/,"$1***$2");
+async function sms(cb,label,email){const box=$("#otp");box.innerHTML=`<div class="card ld"><div class="spin"></div><p class="mut">بنبعت الكود…</p></div>`;
+ let tok;try{const r=await fetch("/api/otp/send",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})}),d=await r.json();if(!r.ok)throw d;tok=d.token;if(d.demo)toast("كود التجربة: "+d.demo,12000)}
+ catch(e){box.innerHTML="";return err((e&&e.error)||"مقدرناش نبعت الكود، جرّب تاني")}
+ box.innerHTML=`<div class="card"><h3>${label}</h3><p class="mut">بعتنا كود من 6 أرقام على إيميلك ${esc(mask(email))}. لو مجاش شوف رسايل Spam.</p><div class="fl"><span>🔑</span><input id="cd" inputmode="numeric" maxlength="6" placeholder="كود التحقق"></div><div id="er2" class="err"></div><button class="full big1" id="okb">تأكيد</button><p class="sw"><a href="#" id="rs">إعادة إرسال الكود</a></p></div>`;
+ if(box.scrollIntoView)box.scrollIntoView({behavior:"smooth"});
+ $("#rs").onclick=e=>{e.preventDefault();sms(cb,label,email)};
+ $("#okb").onclick=async()=>{const c=$("#cd").value.trim();try{const r=await fetch("/api/otp/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,code:c,token:tok})}),d=await r.json();if(!r.ok||!d.ok)throw d;cb()}catch(e){const m=(e&&e.error)||"الكود غلط";$("#er2").textContent=m;toast(m)}}}
+function signup(){const d={name:$("#nm").value.trim(),shop:$("#sh").value.trim(),addr:$("#ad").value.trim(),phone:$("#ph").value.trim(),email:$("#em").value.trim().toLowerCase(),pass:$("#pw").value};
+ if(!d.name||!d.shop||!d.addr||!d.phone||!d.email||d.pass.length<6)return toast("كمّل كل البيانات (كلمة السر 6 حروف على الأقل)");
+ if(!/^01[0125]\d{8}$/.test(d.phone))return toast("اكتب رقم موبايل مصري صحيح (11 رقم)");
+ if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.email))return toast("اكتب إيميل صحيح");
+ if(users().some(u=>u.phone===d.phone||u.email===d.email))return toast("الرقم أو الإيميل ده مسجّل قبل كده");
+ sms(()=>{const us=users();d.id=Date.now();d.exp=Date.now()+7*864e5;d.ban=0;us.push(d);saveU();me=d.id;DB.set("me",me);view="home";toast("تم إنشاء الحساب – 7 أيام مجاناً");render()},"أدخل كود التحقق",d.email)}
+function forgot(){const p=$("#ph").value.trim(),u=users().find(x=>x.phone===p||(x.email&&x.email===p.toLowerCase()));if(!u)return err("اكتب رقم هاتفك أو إيميلك الأول");
+ if(!u.email)return err("الحساب ده مفيهوش إيميل. كلّم الدعم لاسترجاع كلمة السر.");
+ sms(()=>{const n=prompt("كلمة السر الجديدة (6 حروف على الأقل)");if(n&&n.length>=6){u.pass=n;saveU();toast("تم تغيير كلمة السر")}},"كود استرجاع كلمة السر",u.email)}
+
 function trial(u){const d=daysLeft(u);return d>0?"":`<div class="banner exp"><span>انتهت التجربة – تواصل مع الأدمن للاشتراك</span><button class="sm" style="background:#fff;color:#14263B" onclick="location.href='https://wa.me/${WA}'">${ADMIN_PHONE}</button></div>`}
 const AND='<svg viewBox="0 0 48 48"><path d="M10 22a14 14 0 0 1 28 0z" fill="#fff"/><rect x="10" y="25" width="28" height="16" rx="4" fill="#fff"/><path d="M15 9l4 5M33 9l-4 5" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/><circle cx="19" cy="17" r="1.8" fill="#1F4E79"/><circle cx="29" cy="17" r="1.8" fill="#1F4E79"/></svg>';
 const IPH='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="7" y="2" width="10" height="20" rx="3"/><path d="M10.5 5h3" stroke-linecap="round"/></svg>';
