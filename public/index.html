@@ -112,9 +112,10 @@ const mask=e=>String(e).replace(/^(.).*(@.*)$/,"$1***$2");
 async function sms(cb,label,email){const box=$("#otp");box.innerHTML=`<div class="card ld"><div class="spin"></div><p class="mut">بنبعت الكود…</p></div>`;
  let tok;try{const r=await fetch("/api/otp/send",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})}),d=await r.json();if(!r.ok)throw d;tok=d.token;if(d.demo)toast("كود التجربة: "+d.demo,12000)}
  catch(e){box.innerHTML="";return err((e&&e.error)||"مقدرناش نبعت الكود، جرّب تاني")}
- box.innerHTML=`<div class="card"><h3>${label}</h3><p class="mut">بعتنا كود من 6 أرقام على إيميلك ${esc(mask(email))}. لو مجاش شوف رسايل Spam.</p><div class="fl"><span>🔑</span><input id="cd" inputmode="numeric" maxlength="6" placeholder="كود التحقق"></div><div id="er2" class="err"></div><button class="full big1" id="okb">تأكيد</button><p class="sw"><a href="#" id="rs">إعادة إرسال الكود</a></p></div>`;
+ box.innerHTML=`<div class="card"><h3>${label}</h3><p class="mut">يُرجى إدخال رمز التحقق المُرسل إلى بريدك الإلكتروني. <a href="#" id="nc">لم يصل الكود؟</a></p><div class="fl"><span>🔑</span><input id="cd" inputmode="numeric" maxlength="6" placeholder="كود التحقق"></div><div id="er2" class="err"></div><button class="full big1" id="okb">تأكيد</button><p class="sw"><a href="#" id="rs">إعادة إرسال الكود</a></p><p class="mut" id="nh" style="display:none;text-align:center">إذا لم تجده في البريد الوارد، يُرجى التحقق من مجلد الرسائل غير المرغوب فيها.</p></div>`;
  if(box.scrollIntoView)box.scrollIntoView({behavior:"smooth"});
  $("#rs").onclick=e=>{e.preventDefault();sms(cb,label,email)};
+ $("#nc").onclick=e=>{e.preventDefault();$("#nh").style.display="block"};
  $("#okb").onclick=async()=>{const c=$("#cd").value.trim();try{const r=await fetch("/api/otp/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,code:c,token:tok})}),d=await r.json();if(!r.ok||!d.ok)throw d;cb()}catch(e){const m=(e&&e.error)||"الكود غلط";$("#er2").textContent=m;toast(m)}}}
 function signup(){const d={name:$("#nm").value.trim(),shop:$("#sh").value.trim(),addr:$("#ad").value.trim(),phone:$("#ph").value.trim(),email:$("#em").value.trim().toLowerCase(),pass:$("#pw").value};
  if(!d.name||!d.shop||!d.addr||!d.phone||!d.email||d.pass.length<6)return toast("كمّل كل البيانات (كلمة السر 6 حروف على الأقل)");
