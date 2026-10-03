@@ -97,7 +97,7 @@ function A(){const up=tab=="up",F=(i,ic,ph,ex="")=>`<div class="fl"><span>${ic}<
  <h1 class="wl"><i>✦</i> أهلاً بك <em>👋</em> <i>✦</i></h1><p class="sb">قيّم أجهزتك المستعملة واعرف مواصفات الأجهزة المستعملة وسعر البيع والشراء بسهولة</p>
  <div class="ch0"><span>📸 فحص بالصور</span><span>📊 أسعار السوق</span><span>🗂️ سجل تقييماتك</span></div></div>
  <div class="card fm"><div class="seg"><button class="${!up?"on":""}" onclick="tab='in';A()">تسجيل دخول</button><button class="${up?"on":""}" onclick="tab='up';A()">حساب جديد</button></div>
- <div style="height:14px"></div>${up?F("nm","👤","الاسم الشخصي")+F("sh","🏪","اسم المحل")+F("ad","📍","العنوان"):""}${F("ph","📱","رقم الهاتف",'inputmode="tel"')}
+ <div style="height:14px"></div>${up?F("nm","👤","الاسم الشخصي")+F("sh","🏪","اسم المحل")+F("ad","📍","العنوان"):""}${F("ph","📱","رقم الهاتف",up?'inputmode="tel"':"")}
  <div class="fl"><span>🔒</span><input id="pw" type="password" placeholder="كلمة السر"><button type="button" class="eye" onclick="pwT()" aria-label="إظهار كلمة السر">👁</button></div>
  ${up?`<p class="mut" style="margin:2px 2px 12px">📩 هنبعت كود تحقق SMS على رقمك.</p>`:`<p style="margin:2px 2px 14px;text-align:left"><a href="#" onclick="forgot();return false">نسيت كلمة السر؟</a></p>`}
  <button class="full big1" onclick="${up?"signup()":"login()"}">${up?"إنشاء حساب":"دخول"}</button>
