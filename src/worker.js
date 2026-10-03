@@ -11,8 +11,19 @@ const COND = [
   { key: "repaired", ar: "تمت صيانته (تغيير شاشة أو باغة)", q: "متغير شاشة صيانة" }
 ];
 
+const GRADE = { excellent: "ممتاز", very_good: "جيد جداً", good: "جيد", poor: "ضعيف (كسر أو تلف واضح)" };
+function condQuery(d, c) {
+  if (c === 2) {
+    if (d.grade === "poor") return "شاشة مكسورة";
+    const m = { "شاشة": "متغير شاشة", "باغة": "متغير باغة", "بطارية": "متغير بطارية" };
+    return (d.parts || []).map(p => m[p]).filter(Boolean).join(" ") || "صيانة متغير قطعة";
+  }
+  if (c === 0) return "كسر زيرو بالعلبة";
+  return d.grade === "very_good" ? "حالة ممتازة استعمال خفيف" : "خدوش بسيطة";
+}
+
 async function tavily(d, c) {
-  const q = `${d.brand} ${d.model} ${d.ram}GB مستعمل ${COND[c].q} للبيع في مصر دوبيزل السعر بالجنيه`;
+  const q = `${d.brand} ${d.model} ${d.ram}GB ${d.storage ? d.storage + "GB " : ""}مستعمل ${condQuery(d, c)} للبيع في مصر دوبيزل السعر بالجنيه`;
   const call = (extra) => fetch("https://api.tavily.com/search", {
     method: "POST",
     headers: { "content-type": "application/json", authorization: "Bearer " + TKEY },
@@ -26,20 +37,26 @@ async function tavily(d, c) {
 }
 
 function buildPrompt(d, c, results) {
-  const notes = [d.customs, ...(d.notes || [])].filter(Boolean).join("، ");
   const src = results.map((x, i) => `[${i + 1}] ${x.title}\n${x.url}\n${x.content}`).join("\n\n");
+  const det = [
+    `الجهاز: ${d.brand} ${d.model} رام ${d.ram}${d.storage ? " وذاكرة " + d.storage + "GB" : ""}`,
+    `الحالة المطلوبة: ${COND[c].ar}`,
+    d.grade ? `درجة فحص الشكل: ${GRADE[d.grade]}` : "",
+    `العيوب الظاهرة: ${(d.defects || []).length ? d.defects.join("، ") : "لا توجد"}`,
+    `القطع المستبدلة: ${(d.parts || []).length ? d.parts.join("، ") : "لا توجد"}`,
+    `ملاحظات أخرى: ${[d.customs, ...(d.notes || [])].filter(Boolean).join("، ")}`
+  ].filter(Boolean).join("\n");
   return `أنت تستخرج سعر الجهاز المستعمل في مصر من نتائج البحث فقط.
-الجهاز: ${d.brand} ${d.model} رام ${d.ram}
-الحالة المطلوبة: ${COND[c].ar}
-ملاحظات على الجهاز: ${notes}
+${det}
 
 نتائج البحث:
 ${src}
 
-المطلوب: من الأسعار المذكورة صراحةً في النتائج أعلاه فقط، استخرج قائمة بسعر كل إعلان مطابق للجهاز في الحالة المطلوبة، بالجنيه المصري، رقم واحد لكل إعلان.
+المطلوب: من الأسعار المذكورة صراحةً في النتائج أعلاه فقط، استخرج قائمة بسعر كل إعلان مطابق لهذا الجهاز بهذه الحالة، بالجنيه المصري، رقم واحد لكل إعلان.
 القواعد:
-- اعتمد فقط على الإعلانات التي تتطابق حالتها مع الحالة المطلوبة. للحالة الجيدة يمكن قبول الإعلان الذي لا يذكر حالة الجهاز، أما للممتاز أو الصيانة فيجب أن يذكر الإعلان ذلك صراحةً.
-- تجاهل سعر الجهاز الجديد وأسعار الدول الأخرى وأي عملة غير الجنيه المصري، وتجاهل الإعلانات لجهاز أو رام مختلف.
+- اعتمد فقط على الإعلانات المطابقة للجهاز (الشركة والموديل والرام والذاكرة، ولو الذاكرة غير مذكورة فتجاهلها) والمطابقة لحالته وعيوبه وقطعه المستبدلة أعلاه. مثلاً لو الجهاز فيه شاشة مكسورة أو متغيرة فاعتمد على إعلانات الأجهزة المكسورة أو المتغير شاشتها فقط. ولو الجهاز بلا عيوب ولا قطع مستبدلة فتجاهل إعلانات الأجهزة المكسورة أو المتغير فيها قطع.
+- للحالة الجيدة يمكن قبول الإعلان الذي لا يذكر حالة الجهاز، أما للممتاز أو الصيانة فيجب أن يذكر الإعلان ذلك صراحةً.
+- تجاهل سعر الجهاز الجديد وأسعار الدول الأخرى وأي عملة غير الجنيه المصري.
 - تجاهل الأسعار الشاذة (الأعلى أو الأقل بكثير من باقي الأسعار).
 - لا تخمّن أبداً: لو لا توجد أسعار ضع قائمة فارغة.
 أجب بـ JSON فقط بهذا الشكل: {"prices":[0,0,0]}`;
@@ -82,7 +99,11 @@ function tight(prices) {
 
 async function getRanges(d) {
   const c = [0, 1, 2].includes(+d.cond) ? +d.cond : 1, now = Date.now();
-  const key = [d.brand, d.model, d.ram, c, d.customs, (d.notes || []).join()].join("|").toLowerCase();
+  const arr = x => (Array.isArray(x) ? x : []).slice(0, 12).map(v => String(v).slice(0, 140));
+  d.defects = arr(d.defects); d.parts = arr(d.parts); d.notes = arr(d.notes);
+  d.storage = String(d.storage || "").replace(/\D/g, "").slice(0, 4);
+  d.grade = GRADE[d.grade] ? d.grade : "";
+  const key = [d.brand, d.model, d.ram, d.storage, c, d.grade, d.defects.join(), d.parts.join(), d.customs, d.notes.join()].join("|").toLowerCase();
   const hit = cache.get(key);
   if (hit && now - hit.t < 864e5) return hit.v;
   const results = await tavily(d, c);
@@ -212,7 +233,7 @@ export default {
       if (!setup(env)) return T("ناقص مفتاح: تأكد من GEMINI_API_KEY و TAVILY_API_KEY في Cloudflare", 500);
       const q = u.searchParams;
       try {
-        const r = await getRanges({ brand: q.get("brand") || "Realme", model: q.get("model") || "C55", ram: q.get("ram") || "8", cond: q.get("c") || "1", customs: "", notes: [] });
+        const r = await getRanges({ brand: q.get("brand") || "Realme", model: q.get("model") || "C55", ram: q.get("ram") || "8", cond: q.get("c") || "1", storage: q.get("st") || "", grade: q.get("g") || "", customs: "", notes: [] });
         return T("الحالة: " + r.cond + "\nعدد نتائج البحث: " + r.sources + "\nالأسعار المستخرجة: " + r.prices.join(", ") + "\nالمدى: " + JSON.stringify(r.ranges[r.cond]));
       } catch (e) { return T("خطأ: " + e.message, 500); }
     }
