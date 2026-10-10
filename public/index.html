@@ -182,7 +182,7 @@ async function scanDev(){const M=["يرجى الانتظار…","بنقرا ا�
  $a.innerHTML=`<div class="card ld"><div class="spin"></div><h2>جاري فحص الجهاز</h2><p class="mut" id="lm">${M[0]}</p><div class="bar"><i id="lb"></i></div></div>`;
  let k=0;const t=setInterval(()=>{k++;const m=$("#lm"),b=$("#lb");if(m)m.textContent=M[Math.min(2,Math.floor(k/5))];if(b)b.style.width=Math.min(95,k*7)+"%"},1000);
  try{const d=await api("/api/scan",{box:W.img.x,ussd:W.img.c});
- const b=d.box||{},u=d.ussd||{};if(!(b.items||[]).length&&!b.model&&!b.brand)throw 0;
+ const b=d.box||{},u=d.ussd||{};if(d.notBox||(!(b.items||[]).length&&!b.model&&!b.brand))throw 0;
  W.items=b.items||[];W.brand=guessBrand(b.brand);W.model=b.model||"";W.ram=b.ram||"";W.st=b.storage||"";W.ser=b.serial||"";W.b1=b.imei1||"";W.b2=b.imei2||"";W.i1=u.imei1||"";W.i2=u.imei2||"";W.serD=u.serial||"";W.manual=false;W.info=null;
  clearInterval(t);W.s=1;render()}catch(e){clearInterval(t);$a.innerHTML=`<div class="card"><h2>فشلت قراءة العلبة</h2><p>أعد تحميل الصورة، أو كمّل بيانات يدوي.</p>${dt(e)}<div class="row"><button class="sec" onclick="W.img.x=null;W.s=0;render()">إعادة تحميل الصورة</button><button onclick="W.manual=true;W.items=[];W.info=null;W.infoDone=false;W.s=1;render()">كمّل بيانات يدوي</button></div></div>`}}
 async function getInfo(){$a.innerHTML=`<div class="card ld"><div class="spin"></div><h2>جاري فحص الجهاز</h2><p class="mut">يرجى الانتظار…</p></div>`;
@@ -214,9 +214,9 @@ async function calc(){const c=cond(),a=W.a,n=[];if((a.acc||[]).length<2)n.push("
  const mn=g.min,mx=g.max,av=g.avg,u=cur();hist().push({uid:u.id,t:Date.now(),dev:W.brand+" "+W.model+" "+W.ram+"GB",c,mn,mx,av});DB.set("h",mem.hist);W.res={c,base:g.base,mn,mx,av,approx:!!g.approx};W.s=3;Rs()}catch(e){fail("تعذّر جلب الأسعار. افتح الموقع من رابط السيرفر وراجع الاتصال.")}}
 function fail(m){$a.innerHTML=`<div class="card"><h2>مش قادرين نحسب السعر</h2><p>${m}</p><div class="row"><button class="sec" onclick="W.s=4;render()">رجوع</button><button onclick="calc()">حاول تاني</button></div></div>`}
 function Rs(){const r=W.res,mis=mism();
- $a.innerHTML=`<div class="card"><h2>${W.brand} ${W.model} – ${W.ram}GB</h2><p class="mut">الحالة: ${["ممتازة","جيدة","تمت صيانته"][r.c]} • أقل سعر في الإعلانات ${fmt(r.base)} ج</p>
+ $a.innerHTML=`<div class="card"><h2>${W.brand} ${W.model} – ${W.ram}GB</h2><p class="mut">الحالة: ${["ممتازة","جيدة","تمت صيانته"][r.c]}</p>
  ${mis.map(m=>`<div class="warn">تحذير: ${m}. راجع الأرقام قبل الشراء.</div>`).join("")}${W.a.cus==="غير مسجل"?`<div class="warn">الجهاز غير مسجّل أو عليه رسوم جمارك.</div>`:""}
- ${r.approx?`<div class="warn">تقدير تقريبي: مفيش إعلانات كفاية بنفس حالة الجهاز بالظبط، فالسعر محسوب من إعلانات الجهاز بشكل عام.</div>`:""}<div class="price"><div><span>الحد الأدنى</span><b>${fmt(r.mn)}</b></div><div><span>المتوسط</span><b>${fmt(r.av)}</b></div><div><span>الحد الأقصى</span><b>${fmt(r.mx)}</b></div></div><p class="mut">الأسعار محسوبة من أقل سعر في إعلانات السوق المتقاربة بعد الخصم.</p>
+<div class="price"><div><span>الحد الأدنى</span><b>${fmt(r.mn)}</b></div><div><span>المتوسط</span><b>${fmt(r.av)}</b></div><div><span>الحد الأقصى</span><b>${fmt(r.mx)}</b></div></div>
  <button class="full" onclick="view='home';render()">رجوع للرئيسية</button></div>`}
 const CN=["ممتاز","جيدة","صيانة"],CC=["#16895A","#C98A00","#C63D3D"];
 function Hs(u){const h=hist().filter(x=>x.uid===u.id).reverse();$a.innerHTML=trial(u)+`<div class="hd"><button class="sec sm" onclick="view='home';render()">→ رجوع</button><h2>سجل التقييمات</h2></div>`+(h.length?h.map(x=>`<div class="rc" style="--c:${CC[x.c]||CC[1]}"><div class="r1"><b>${x.dev}</b><span class="chip">${CN[x.c]||"-"}</span></div><div class="r2">${new Date(x.t).toLocaleDateString("ar-EG",{day:"numeric",month:"short",year:"numeric"})}</div><div class="r3"><div><span>الأدنى</span>${fmt(x.mn)}</div><div class="mid"><span>المتوسط</span>${fmt(x.av)}</div><div><span>الأقصى</span>${fmt(x.mx)}</div></div></div>`).join(""):`<div class="empty">📋<p>لسه معملتش أي تقييم</p><button onclick="start()">ابدأ أول تقييم</button></div>`)}
