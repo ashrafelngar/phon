@@ -22,8 +22,8 @@ function condQuery(d, c) {
   return d.grade === "very_good" ? "حالة ممتازة استعمال خفيف" : "خدوش بسيطة";
 }
 
-async function tavily(d, c) {
-  const q = `${d.brand} ${d.model} ${d.ram}GB ${d.storage ? d.storage + "GB " : ""}مستعمل ${condQuery(d, c)} للبيع في مصر دوبيزل السعر بالجنيه`;
+const retry = async f => { try { return await f(); } catch (e) { await new Promise(r => setTimeout(r, 700)); return f(); } };
+async function tsearch(q) {
   const call = (extra) => fetch("https://api.tavily.com/search", {
     method: "POST",
     headers: { "content-type": "application/json", authorization: "Bearer " + TKEY },
@@ -36,26 +36,29 @@ async function tavily(d, c) {
   return (j.results || []).map(x => ({ title: x.title, url: x.url, content: (x.content || "").slice(0, 600) }));
 }
 
-function buildPrompt(d, c, results) {
+function buildPrompt(d, c, results, mode = "exact") {
   const src = results.map((x, i) => `[${i + 1}] ${x.title}\n${x.url}\n${x.content}`).join("\n\n");
-  const det = [
-    `الجهاز: ${d.brand} ${d.model} رام ${d.ram}${d.storage ? " وذاكرة " + d.storage + "GB" : ""}`,
+  const dev = `الجهاز: ${d.brand} ${d.model} رام ${d.ram}${d.storage ? " وذاكرة " + d.storage + "GB" : ""}`;
+  const det = mode === "exact" ? [
+    dev,
     `الحالة المطلوبة: ${COND[c].ar}`,
     d.grade ? `درجة فحص الشكل: ${GRADE[d.grade]}` : "",
     `العيوب الظاهرة: ${(d.defects || []).length ? d.defects.join("، ") : "لا توجد"}`,
     `القطع المستبدلة: ${(d.parts || []).length ? d.parts.join("، ") : "لا توجد"}`,
     `ملاحظات أخرى: ${[d.customs, ...(d.notes || [])].filter(Boolean).join("، ")}`
-  ].filter(Boolean).join("\n");
+  ].filter(Boolean).join("\n") : dev;
+  const rule = mode === "exact"
+    ? `- اعتمد فقط على الإعلانات المطابقة للجهاز (الشركة والموديل والرام والذاكرة، ولو الذاكرة غير مذكورة فتجاهلها) والمطابقة لحالته وعيوبه وقطعه المستبدلة أعلاه. مثلاً لو الجهاز فيه شاشة مكسورة أو متغيرة فاعتمد على إعلانات الأجهزة المكسورة أو المتغير شاشتها فقط. ولو الجهاز بلا عيوب ولا قطع مستبدلة فتجاهل إعلانات الأجهزة المكسورة أو المتغير فيها قطع.\n- للحالة الجيدة يمكن قبول الإعلان الذي لا يذكر حالة الجهاز، أما للممتاز أو الصيانة فيجب أن يذكر الإعلان ذلك صراحةً.`
+    : `- اعتمد على أي إعلان لنفس الجهاز (الشركة والموديل) بغض النظر عن حالته. تجاهل الإعلانات التي تذكر رام أو ذاكرة مختلفة عن المطلوب، وتجاهل إعلانات الأجهزة المختلفة.`;
   return `أنت تستخرج سعر الجهاز المستعمل في مصر من نتائج البحث فقط.
 ${det}
 
 نتائج البحث:
 ${src}
 
-المطلوب: من الأسعار المذكورة صراحةً في النتائج أعلاه فقط، استخرج قائمة بسعر كل إعلان مطابق لهذا الجهاز بهذه الحالة، بالجنيه المصري، رقم واحد لكل إعلان.
+المطلوب: من الأسعار المذكورة صراحةً في النتائج أعلاه فقط، استخرج قائمة بسعر كل إعلان مطابق، بالجنيه المصري، رقم واحد لكل إعلان.
 القواعد:
-- اعتمد فقط على الإعلانات المطابقة للجهاز (الشركة والموديل والرام والذاكرة، ولو الذاكرة غير مذكورة فتجاهلها) والمطابقة لحالته وعيوبه وقطعه المستبدلة أعلاه. مثلاً لو الجهاز فيه شاشة مكسورة أو متغيرة فاعتمد على إعلانات الأجهزة المكسورة أو المتغير شاشتها فقط. ولو الجهاز بلا عيوب ولا قطع مستبدلة فتجاهل إعلانات الأجهزة المكسورة أو المتغير فيها قطع.
-- للحالة الجيدة يمكن قبول الإعلان الذي لا يذكر حالة الجهاز، أما للممتاز أو الصيانة فيجب أن يذكر الإعلان ذلك صراحةً.
+${rule}
 - تجاهل سعر الجهاز الجديد وأسعار الدول الأخرى وأي عملة غير الجنيه المصري.
 - تجاهل الأسعار الشاذة (الأعلى أو الأقل بكثير من باقي الأسعار).
 - لا تخمّن أبداً: لو لا توجد أسعار ضع قائمة فارغة.
@@ -82,7 +85,7 @@ async function askGemini(prompt) {
 
 // نختار أكبر مجموعة أسعار متقاربة، ونأخذ أقل سعر فيها، ونخصم منه discountFor فيكون هو الحد الأدنى.
 // المتوسط = الأدنى + نصف الفرق، والأقصى = الأدنى + الفرق (الفرق حسب فئة سعر الجهاز)
-function tight(prices) {
+function tight(prices, minN = 2) {
   const p = [...prices].sort((a, b) => a - b);
   let best = null;
   for (let i = 0; i < p.length; i++) {
@@ -91,7 +94,7 @@ function tight(prices) {
     const n = j - i + 1;
     if (!best || n > best.n) best = { n, i, j };
   }
-  if (!best || best.n < 2) return null;
+  if (!best || best.n < minN) return null;
   const base = p[best.i], sp = spreadFor(base);
   const min = Math.round(base * (1 - discountFor(base)) / 50) * 50;
   return { base, min, avg: min + sp / 2, max: min + sp };
@@ -106,11 +109,24 @@ async function getRanges(d) {
   const key = [d.brand, d.model, d.ram, d.storage, c, d.grade, d.defects.join(), d.parts.join(), d.customs, d.notes.join()].join("|").toLowerCase();
   const hit = cache.get(key);
   if (hit && now - hit.t < 864e5) return hit.v;
-  const results = await tavily(d, c);
-  const prices = results.length ? await askGemini(buildPrompt(d, c, results)) : [];
-  const range = tight(prices);
-  const out = { ranges: { excellent: null, good: null, repaired: null, [COND[c].key]: range }, sources: results.length, prices, cond: COND[c].key };
-  cache.set(key, { t: now, v: out });
+  const base = `${d.brand} ${d.model}`, ramq = `${d.ram}GB${d.storage ? " " + d.storage + "GB" : ""}`;
+  // نبدأ ببحث مطابق للحالة، ولو ما لقيناش أسعار نوسّع البحث تدريجياً (والنتيجة تتعلّم "تقريبية")
+  const stages = [
+    { q: `${base} ${ramq} مستعمل ${condQuery(d, c)} للبيع في مصر دوبيزل السعر بالجنيه`, mode: "exact", min: 2 },
+    { q: `${base} ${ramq} مستعمل للبيع في مصر دوبيزل السعر بالجنيه`, mode: "any", min: 1 },
+    { q: `${base} مستعمل للبيع في مصر السعر بالجنيه`, mode: "any", min: 1 }
+  ];
+  let range = null, prices = [], n = 0;
+  for (const [i, st] of stages.entries()) {
+    const results = await retry(() => tsearch(st.q));
+    n = results.length;
+    if (!results.length) continue;
+    prices = await retry(() => askGemini(buildPrompt(d, c, results, st.mode)));
+    range = tight(prices, st.min);
+    if (range) { if (i > 0) range.approx = true; break; }
+  }
+  const out = { ranges: { excellent: null, good: null, repaired: null, [COND[c].key]: range }, sources: n, prices, cond: COND[c].key };
+  if (range) cache.set(key, { t: now, v: out });
   return out;
 }
 
@@ -170,8 +186,9 @@ async function info(d) {
   return { items: items(v.items).slice(0, 40), sources: res.slice(0, 3).map(x => ({ title: t2(x.title, 80), url: x.url })) };
 }
 
-const INSPECTPROMPT = `أنت خبير فحص موبايلات مستعملة. الصورة المسماة front هي وش الجهاز والشاشة مطفية، والمسماة back هي ظهر الجهاز.
-افحص ما هو ظاهر في الصور فقط ولا تخمّن ما لا يظهر. لو الصور غير واضحة أو ليست لموبايل أو الشاشة مضاءة في صورة الوش فاجعل valid=false واكتب السبب بالعربية في reason.
+const INSPECTPROMPT = `أنت خبير فحص موبايلات مستعملة. الصورة المسماة front هي وجه الجهاز (الشاشة قد تكون مضاءة أو مطفية)، والمسماة back هي ظهر الجهاز.
+افحص ما هو ظاهر في الصور مهما كانت جودتها (حتى لو فيها انعكاس أو ظل أو إضاءة ضعيفة أو لم تكن حادة تماماً)، ولا ترفض الصور لهذه الأسباب. اجعل valid=false فقط لو الصورة ليست لموبايل أصلاً.
+لو جودة الصورة أو الانعكاس تحد من الفحص فاذكر ذلك كملاحظة بدرجة low بدلاً من رفض الصورة، ولا تخمّن ما لا يظهر.
 حدد grade: excellent (ممتاز: لا توجد أي خدوش أو علامات ظاهرة)، very_good (جيد جداً: خدوش أو علامات خفيفة جداً بالكاد تظهر)، good (جيد: خدوش أو علامات استعمال واضحة بدون كسر)، poor (ضعيف: كسر أو شرخ أو انبعاج أو تلف واضح).
 notes: كل ملاحظة ظاهرة (كسر، شرخ، خدوش، انبعاج، تقشير دهان، بقع أو ظلال على الشاشة، تلف في عدسة الكاميرا، علامات في الإطار وغيرها) كعنصر {"area":"المكان مثل الشاشة أو الظهر أو الإطار أو الكاميرا","issue":"وصف قصير بالعربية","severity":"low أو medium أو high"}. لو لا توجد ملاحظات اترك القائمة فارغة.
 summary: جملة عربية واحدة.
