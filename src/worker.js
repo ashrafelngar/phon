@@ -140,7 +140,8 @@ const SCANPROMPT = `اقرأ كل ما هو مكتوب على ملصق كرتو�
 المطلوب 1) items: كل سطر أو بيان مكتوب على الكرتونة بلا استثناء، بنفس ترتيبه. لو للبيان عنوان (مثل Color أو Model) فضع ترجمته للعربي فقط في label (مثل: اللون، الموديل)، وضع قيمته في value كما هي مكتوبة حرفياً بنفس لغتها وأحرفها بلا أي ترجمة أو تعديل أو تلخيص. ولو لا يوجد عنوان ضع label فارغاً والنص كله في value كما هو. لا تحدد حقولاً مسبقة: الكرتونة قد تحتوي مواصفات كثيرة أو قليلة، اكتب الموجود فقط.
 2) box: brand وmodel وram (رقم GB فقط) وstorage (رقم GB فقط) وserial وimei1 وimei2 من الكرتونة، وضع "" لما لا يظهر.
 3) ussd: imei1 وimei2 وserial من شاشة *#06#، وضع "" لما لا يظهر.
-لا تخمّن أبداً. أجب JSON فقط: {"items":[{"label":"","value":""}],"box":{"brand":"","model":"","ram":"","storage":"","serial":"","imei1":"","imei2":""},"ussd":{"imei1":"","imei2":"","serial":""}}`;
+4) box_valid: اجعلها true فقط لو الصورة المسماة box هي فعلاً كرتونة (علبة) موبايل أو ملصق بيانات جهاز عليه مواصفات أو أرقام الجهاز. لو الصورة لأي شيء آخر (شخص، مكان، شيء عادي، جهاز بدون علبة، مستند، شاشة...) فاجعلها false واترك items فارغة ولا تخترع أي بيانات.
+لا تخمّن أبداً. أجب JSON فقط: {"box_valid":false,"items":[{"label":"","value":""}],"box":{"brand":"","model":"","ram":"","storage":"","serial":"","imei1":"","imei2":""},"ussd":{"imei1":"","imei2":"","serial":""}}`;
 
 const FALLBACK_MODEL = "gemini-3.1-flash-lite";
 async function gem(parts) {
@@ -172,6 +173,10 @@ async function scan(d) {
   const add = (label, url) => { const x = dataUrl(url); if (!x) return false; parts.push({ text: label }, { inline_data: { mime_type: x.mime, data: x.data } }); return true; };
   if (!add("box:", d.box) || !add("ussd:", d.ussd)) throw new Error("missing image");
   const v = await gem(parts), b = v.box || {}, u = v.ussd || {};
+  const its = items(v.items), has = b.brand || b.model || b.serial || b.imei1 || b.imei2;
+  if (v.box_valid !== true || !(has || its.length >= 3)) {
+    return { notBox: true, box: { brand: "", model: "", ram: "", storage: "", serial: "", imei1: "", imei2: "", items: [] }, ussd: { imei1: imei(u.imei1), imei2: imei(u.imei2), serial: ser(u.serial) } };
+  }
   return {
     box: { brand: t2(b.brand, 60), model: t2(b.model, 60), ram: digits(b.ram), storage: digits(b.storage), serial: ser(b.serial), imei1: imei(b.imei1), imei2: imei(b.imei2), items: items(v.items) },
     ussd: { imei1: imei(u.imei1), imei2: imei(u.imei2), serial: ser(u.serial) }
