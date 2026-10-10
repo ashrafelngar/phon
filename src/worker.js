@@ -142,27 +142,34 @@ const SCANPROMPT = `اقرأ كل ما هو مكتوب على ملصق كرتو�
 3) ussd: imei1 وimei2 وserial من شاشة *#06#، وضع "" لما لا يظهر.
 لا تخمّن أبداً. أجب JSON فقط: {"items":[{"label":"","value":""}],"box":{"brand":"","model":"","ram":"","storage":"","serial":"","imei1":"","imei2":""},"ussd":{"imei1":"","imei2":"","serial":""}}`;
 
+const FALLBACK_MODEL = "gemini-3.1-flash-lite";
 async function gem(parts) {
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
-    method: "POST",
-    headers: { "x-goog-api-key": GKEY, "content-type": "application/json" },
-    body: JSON.stringify({ generationConfig: { temperature: 0, responseMimeType: "application/json" }, contents: [{ parts }] })
-  });
-  const j = await r.json();
-  if (!r.ok) throw new Error("gemini: " + JSON.stringify(j));
-  const m = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("").match(/\{[\s\S]*\}/);
-  if (!m) throw new Error("no json");
-  return JSON.parse(m[0]);
+  const errs = [];
+  for (const m of [...new Set([MODEL, FALLBACK_MODEL])]) {
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
+        method: "POST",
+        headers: { "x-goog-api-key": GKEY, "content-type": "application/json" },
+        body: JSON.stringify({ generationConfig: { responseMimeType: "application/json" }, contents: [{ parts }] })
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(`${m} ${r.status}: ${(j.error && j.error.message) || JSON.stringify(j)}`);
+      const text = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("");
+      const mm = text.match(/\{[\s\S]*\}/);
+      if (!mm) throw new Error(`${m}: no json (${text.slice(0, 100)})`);
+      return JSON.parse(mm[0]);
+    } catch (e) { errs.push(e.message); }
+  }
+  throw new Error(errs.join(" | ").slice(0, 400));
 }
+const dataUrl = u => {
+  u = String(u || ""); const k = u.indexOf(";base64,"), mime = u.slice(5, k);
+  return k > 0 && u.startsWith("data:image/") && ["image/jpeg", "image/png", "image/webp"].includes(mime) ? { mime, data: u.slice(k + 8) } : null;
+};
 
 async function scan(d) {
   const parts = [{ text: SCANPROMPT }];
-  const add = (label, url) => {
-    const m = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(url || "");
-    if (!m) return false;
-    parts.push({ text: label }, { inline_data: { mime_type: m[1], data: m[2] } });
-    return true;
-  };
+  const add = (label, url) => { const x = dataUrl(url); if (!x) return false; parts.push({ text: label }, { inline_data: { mime_type: x.mime, data: x.data } }); return true; };
   if (!add("box:", d.box) || !add("ussd:", d.ussd)) throw new Error("missing image");
   const v = await gem(parts), b = v.box || {}, u = v.ussd || {};
   return {
@@ -175,7 +182,7 @@ async function info(d) {
   const r = await fetch("https://api.tavily.com/search", {
     method: "POST",
     headers: { "content-type": "application/json", authorization: "Bearer " + TKEY },
-    body: JSON.stringify({ query: `${d.brand} ${d.model} full specifications release date price gsmarena`, search_depth: "advanced", max_results: 8 })
+    body: JSON.stringify({ query: `${d.brand} ${d.model} full specifications release date price gsmarena`, search_depth: "basic", max_results: 8 })
   });
   const j = await r.json();
   if (!r.ok) throw new Error("tavily: " + JSON.stringify(j));
@@ -197,9 +204,9 @@ summary: جملة عربية واحدة.
 async function inspect(d) {
   const parts = [{ text: INSPECTPROMPT }];
   for (const [label, url] of [["front:", d.front], ["back:", d.back]]) {
-    const m = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(url || "");
-    if (!m) throw new Error("missing image");
-    parts.push({ text: label }, { inline_data: { mime_type: m[1], data: m[2] } });
+    const x = dataUrl(url);
+    if (!x) throw new Error("missing image");
+    parts.push({ text: label }, { inline_data: { mime_type: x.mime, data: x.data } });
   }
   const v = await gem(parts);
   if (v.valid === false) return { valid: false, reason: t2(v.reason, 200) || "الصور مش واضحة" };
@@ -294,7 +301,7 @@ export default {
       GKEY = env.GEMINI_API_KEY; if (env.MODEL) MODEL = env.MODEL;
       if (!GKEY) return J({ error: "المفتاح غير مضبوط" }, 500);
       try { return J(await scan(await request.json())); }
-      catch (e) { console.error(e.message); return J({ error: "فشل قراءة الصور" }, 500); }
+      catch (e) { console.error(e.message); return J({ error: "فشل قراءة الصور", detail: String(e.message).slice(0, 300) }, 500); }
     }
     if (u.pathname === "/api/otp/send" && request.method === "POST") { try { return await otpSend(request, env); } catch (e) { console.error(e.message); return J({ error: "فشل" }, 500); } }
     if (u.pathname === "/api/otp/verify" && request.method === "POST") { try { return await otpVerify(request, env); } catch (e) { console.error(e.message); return J({ error: "فشل" }, 500); } }
@@ -302,12 +309,21 @@ export default {
       GKEY = env.GEMINI_API_KEY; if (env.MODEL) MODEL = env.MODEL;
       if (!GKEY) return J({ error: "المفتاح غير مضبوط" }, 500);
       try { return J(await inspect(await request.json())); }
-      catch (e) { console.error(e.message); return J({ error: "فشل فحص الصور" }, 500); }
+      catch (e) { console.error(e.message); return J({ error: "فشل فحص الصور", detail: String(e.message).slice(0, 300) }, 500); }
     }
     if (u.pathname === "/api/info" && request.method === "POST") {
       if (!setup(env)) return J({ error: "المفاتيح غير مضبوطة" }, 500);
       try { const d = await request.json(); if (!d.brand || !d.model) return J({ error: "بيانات ناقصة" }, 400); return J(await info(d)); }
-      catch (e) { console.error(e.message); return J({ error: "فشل" }, 500); }
+      catch (e) { console.error(e.message); return J({ error: "فشل جلب المعلومات", detail: String(e.message).slice(0, 300) }, 500); }
+    }
+    if (u.pathname === "/diag") {
+      GKEY = env.GEMINI_API_KEY; TKEY = env.TAVILY_API_KEY; if (env.MODEL) MODEL = env.MODEL;
+      const out = [`keys: GEMINI=${!!GKEY} TAVILY=${!!TKEY} BREVO=${!!env.BREVO_API_KEY} MAIL_FROM=${!!env.MAIL_FROM} model=${MODEL}`];
+      const t = async (name, f) => { const s = Date.now(); try { out.push(`${name}: OK (${await f()}) ${Date.now() - s}ms`); } catch (e) { out.push(`${name}: FAIL ${String(e.message).slice(0, 300)}`); } };
+      await t("gemini text", async () => JSON.stringify(await gem([{ text: 'أجب JSON فقط: {"ok":true}' }])));
+      await t("gemini image", async () => JSON.stringify(await gem([{ text: 'Describe the image as JSON {"seen":"..."}' }, { inline_data: { mime_type: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==" } }])));
+      await t("tavily", async () => (await tsearch("Samsung Galaxy A15 price Egypt")).length + " results");
+      return T(out.join("\n"));
     }
     if (u.pathname === "/test") {
       if (!setup(env)) return T("ناقص مفتاح: تأكد من GEMINI_API_KEY و TAVILY_API_KEY في Cloudflare", 500);
