@@ -220,8 +220,8 @@ async function inspect(d) {
   return { valid: true, grade: v.grade, notes, summary: t2(v.summary, 200) };
 }
 
-const J = (o, c = 200) => new Response(JSON.stringify(o), { status: c, headers: { "content-type": "application/json; charset=utf-8" } });
-const T = (t, c = 200) => new Response(t, { status: c, headers: { "content-type": "text/plain; charset=utf-8" } });
+const J = (o, c = 200) => new Response(JSON.stringify(o), { status: c, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" } });
+const T = (t, c = 200) => new Response(t, { status: c, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" } });
 
 // ---------- تأكيد رقم الموبايل برسالة SMS (SMS Misr) ----------
 const enc = new TextEncoder();
@@ -232,8 +232,6 @@ async function hmac(secret, msg) {
 }
 const same = (a, b) => { if (a.length !== b.length) return false; let r = 0; for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i); return r === 0; };
 const otpSecret = env => env.APP_SECRET || env.OTP_SECRET || (env.GEMINI_API_KEY || "") + (env.TAVILY_API_KEY || "");
-const sentAt = new Map(), sentIp = new Map(), tries = new Map(), loginIp = new Map();
-const recent = (m, k, ms) => { if (m.size > 5000) m.clear(); const now = Date.now(), a = (m.get(k) || []).filter(t => now - t < ms); m.set(k, a); return a; };
 const emailNorm = v => { v = String(v || "").trim().toLowerCase(); return v.length <= 120 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v) ? v : ""; };
 const phoneOk = v => { const d = String(v || "").replace(/\D/g, ""); return /^01[0125]\d{8}$/.test(d) ? d : ""; };
 
@@ -249,9 +247,9 @@ async function sendMail(env, to, code) {
 
 // يرسل كود تحقق للإيميل ويرجّع [status, body]
 async function issueOtp(env, request, id) {
-  const ip = request.headers.get("cf-connecting-ip") || "x", a = recent(sentAt, id, 6e5), c = recent(sentIp, ip, 36e5);
-  if (a.length >= 3 || c.length >= 10) return [429, { error: "محاولات كتير، جرّب بعد شوية" }];
-  a.push(Date.now()); c.push(Date.now());
+  const ip = request.headers.get("cf-connecting-ip") || "x";
+  if (await over(env, "os:" + id, 3, 6e5) || await over(env, "oi:" + ip, 10, 36e5)) return [429, { error: "محاولات كتير، جرّب بعد شوية" }];
+  await note(env, "os:" + id); await note(env, "oi:" + ip);
   const code = String(100000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900000)), exp = Date.now() + 3e5;
   const token = exp + "." + await hmac(otpSecret(env), `${id}|${exp}|${code}`);
   if (env.BREVO_API_KEY && env.MAIL_FROM) {
@@ -266,29 +264,52 @@ async function checkOtp(env, id, code, token) {
   const [exp, sig] = String(token || "").split("."); code = String(code || "");
   if (!id || !/^\d{6}$/.test(code) || !exp || !sig) return { error: "اكتب كود التحقق (6 أرقام)" };
   if (+exp < Date.now()) return { error: "الكود انتهت صلاحيته، اطلب كود جديد" };
-  if (tries.size > 5000) tries.clear();
-  const n = (tries.get(sig) || 0) + 1; tries.set(sig, n);
-  if (n > 5) return { error: "محاولات كتير، اطلب كود جديد" };
+  if (await over(env, "ov:" + sig, 5, 3e5)) return { error: "محاولات كتير، اطلب كود جديد" };
+  await note(env, "ov:" + sig);
   return same(await hmac(otpSecret(env), `${id}|${exp}|${code}`), sig) ? { ok: true } : { error: "الكود غلط" };
 }
 
 // ---------- الحسابات والتجار (قاعدة D1) ----------
 const DAY = 864e5;
+class Big extends Error {}
+async function readJson(request, max = 20000) {
+  if (+request.headers.get("content-length") > max) throw new Big("too big");
+  const t = await request.text(); if (t.length > max) throw new Big("too big");
+  return JSON.parse(t);
+}
+const dbg = (env, e) => (env.DEBUG === "1" ? { detail: String(e.message).slice(0, 300) } : {});
 let schemaReady = false;
 async function db(env) {
   if (!env.DB) throw new Error("DB not bound");
   if (!schemaReady) {
     await env.DB.batch([
-      env.DB.prepare("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, shop TEXT, addr TEXT, phone TEXT UNIQUE, email TEXT UNIQUE, salt TEXT, hash TEXT, trial_end INTEGER, banned INTEGER DEFAULT 0, created_at INTEGER)"),
+      env.DB.prepare("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, shop TEXT, addr TEXT, phone TEXT UNIQUE, email TEXT UNIQUE, salt TEXT, hash TEXT, trial_end INTEGER, banned INTEGER DEFAULT 0, created_at INTEGER, tv INTEGER DEFAULT 0)"),
+      env.DB.prepare("CREATE TABLE IF NOT EXISTS usage (user_id INTEGER, day TEXT, kind TEXT, n INTEGER, PRIMARY KEY (user_id, day, kind))"),
+      env.DB.prepare("CREATE TABLE IF NOT EXISTS rl (k TEXT, at INTEGER)"),
+      env.DB.prepare("CREATE INDEX IF NOT EXISTS rl_k ON rl(k, at)"),
       env.DB.prepare("CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, at INTEGER, dev TEXT, cond INTEGER, mn INTEGER, av INTEGER, mx INTEGER)"),
       env.DB.prepare("CREATE INDEX IF NOT EXISTS h_user ON history(user_id, at)"),
       env.DB.prepare("CREATE TABLE IF NOT EXISTS admin_log (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER, msg TEXT)")
     ]);
+    try { await env.DB.prepare("ALTER TABLE users ADD COLUMN tv INTEGER DEFAULT 0").run(); } catch (e) { /* العمود موجود */ }
+    try { await env.DB.prepare("DELETE FROM rl WHERE at < ?").bind(Date.now() - 2 * DAY).run(); } catch (e) {}
     schemaReady = true;
   }
   return env.DB;
 }
 const appSecret = env => { if (!env.APP_SECRET) throw new Error("APP_SECRET missing"); return env.APP_SECRET; };
+// حدود المحاولات محفوظة في القاعدة (ما بتتصفّرش لما السيرفر يعيد التشغيل)
+async function over(env, key, max, ms) { const r = await (await db(env)).prepare("SELECT COUNT(*) AS n FROM rl WHERE k=? AND at>?").bind(key, Date.now() - ms).first(); return r.n >= max; }
+async function note(env, key) { await (await db(env)).prepare("INSERT INTO rl(k,at) VALUES(?,?)").bind(key, Date.now()).run(); }
+const LIMITS = { price: 40, scan: 40, inspect: 40, info: 25 }, LIM_AR = { price: "التسعير", scan: "قراءة الكرتونة", inspect: "فحص الصور", info: "معلومات الجهاز" };
+async function quota(env, au, kind) {
+  if (au.admin) return null;
+  const day = new Date().toISOString().slice(0, 10), d = await db(env);
+  const r = await d.prepare("SELECT n FROM usage WHERE user_id=? AND day=? AND kind=?").bind(au.user.id, day, kind).first();
+  if (r && r.n >= LIMITS[kind]) return J({ error: `وصلت للحد اليومي (${LIMITS[kind]}) في ${LIM_AR[kind]}. جرّب بكرة.` }, 429);
+  await d.prepare("INSERT INTO usage(user_id,day,kind,n) VALUES(?,?,?,1) ON CONFLICT(user_id,day,kind) DO UPDATE SET n=n+1").bind(au.user.id, day, kind).run();
+  return null;
+}
 const rand = n => b64u(crypto.getRandomValues(new Uint8Array(n)));
 async function hashPw(env, pass, salt) {
   const k = await crypto.subtle.importKey("raw", enc.encode(pass + appSecret(env)), "PBKDF2", false, ["deriveBits"]);
@@ -310,6 +331,7 @@ async function auth(request, env, paid) {
   if (p.adm) return { user: ADMIN, admin: true };
   const u = await (await db(env)).prepare("SELECT * FROM users WHERE id=?").bind(p.uid).first();
   if (!u) return { res: J({ error: "الحساب مش موجود، سجّل دخول تاني" }, 401) };
+  if ((u.tv || 0) !== (p.tv || 0)) return { res: J({ error: "الجلسة انتهت، سجّل دخول تاني" }, 401) };
   if (u.banned) return { res: J({ error: "الحساب محظور. كلّم الأدمن." }, 403) };
   if (paid && u.trial_end <= Date.now()) return { res: J({ error: "انتهت التجربة. تواصل مع الأدمن للاشتراك." }, 403) };
   return { user: u };
@@ -317,14 +339,14 @@ async function auth(request, env, paid) {
 async function findUser(env, id) { return (await db(env)).prepare("SELECT * FROM users WHERE email=? OR phone=?").bind(id, id.replace(/\D/g, "") || "x").first(); }
 
 async function signupStart(request, env) {
-  const b = await request.json(), phone = phoneOk(b.phone), email = emailNorm(b.email);
+  const b = await readJson(request), phone = phoneOk(b.phone), email = emailNorm(b.email);
   if (!phone) return J({ error: "اكتب رقم موبايل مصري صحيح (11 رقم)" }, 400);
   if (!email) return J({ error: "اكتب إيميل صحيح" }, 400);
   if (await (await db(env)).prepare("SELECT 1 AS x FROM users WHERE phone=? OR email=?").bind(phone, email).first()) return J({ error: "الرقم أو الإيميل ده مسجّل قبل كده" }, 409);
   const [st, body] = await issueOtp(env, request, email); return J(body, st);
 }
 async function signupFinish(request, env) {
-  const b = await request.json(), phone = phoneOk(b.phone), email = emailNorm(b.email), clean = v => String(v || "").trim().slice(0, 80), pass = String(b.pass || "");
+  const b = await readJson(request), phone = phoneOk(b.phone), email = emailNorm(b.email), clean = v => String(v || "").trim().slice(0, 80), pass = String(b.pass || "");
   const name = clean(b.name), shop = clean(b.shop), addr = clean(b.addr);
   if (!name || !shop || !addr || !phone || !email || pass.length < 6 || pass.length > 100) return J({ error: "كمّل كل البيانات (كلمة السر 6 حروف على الأقل)" }, 400);
   const v = await checkOtp(env, email, b.code, b.token); if (!v.ok) return J({ error: v.error }, 400);
@@ -332,13 +354,13 @@ async function signupFinish(request, env) {
   try {
     const r = await d.prepare("INSERT INTO users(name,shop,addr,phone,email,salt,hash,trial_end,banned,created_at) VALUES(?,?,?,?,?,?,?,?,0,?)").bind(name, shop, addr, phone, email, salt, hash, now + 7 * DAY, now).run();
     const u = { id: r.meta.last_row_id, name, shop, phone, trial_end: now + 7 * DAY, banned: 0 };
-    return J({ token: await makeToken(env, { uid: u.id, exp: now + 30 * DAY }), user: pub(u) });
+    return J({ token: await makeToken(env, { uid: u.id, tv: 0, exp: now + 30 * DAY }), user: pub(u) });
   } catch (e) { if (/UNIQUE/i.test(e.message)) return J({ error: "الرقم أو الإيميل ده مسجّل قبل كده" }, 409); throw e; }
 }
 async function login(request, env) {
-  const ip = request.headers.get("cf-connecting-ip") || "x", att = recent(loginIp, ip, 6e5);
-  if (att.length >= 15) return J({ error: "محاولات كتير، جرّب بعد شوية" }, 429);
-  const b = await request.json(), id = String(b.id || "").trim().toLowerCase(), pass = String(b.pass || ""), bad = () => { att.push(Date.now()); return J({ error: "الرقم أو كلمة السر غلط" }, 401); };
+  const ip = request.headers.get("cf-connecting-ip") || "x", b = await readJson(request), id = String(b.id || "").trim().toLowerCase(), pass = String(b.pass || "");
+  if (await over(env, "li:" + ip, 10, 9e5) || (id && await over(env, "la:" + id, 6, 9e5))) return J({ error: "محاولات كتير، جرّب بعد 15 دقيقة" }, 429);
+  const bad = async () => { await note(env, "li:" + ip); if (id) await note(env, "la:" + id); return J({ error: "الرقم أو كلمة السر غلط" }, 401); };
   if (!id || !pass) return bad();
   if (id === "admin") {
     const ap = String(env.ADMIN_PASSWORD || "").trim();
@@ -350,24 +372,24 @@ async function login(request, env) {
   const u = await findUser(env, id);
   if (!u || !same(await hashPw(env, pass, u.salt), u.hash)) return bad();
   if (u.banned) return J({ error: "الحساب محظور. كلّم الأدمن." }, 403);
-  return J({ token: await makeToken(env, { uid: u.id, exp: Date.now() + 30 * DAY }), user: pub(u) });
+  return J({ token: await makeToken(env, { uid: u.id, tv: u.tv || 0, exp: Date.now() + 30 * DAY }), user: pub(u) });
 }
 async function forgotStart(request, env) {
-  const b = await request.json(), id = String(b.id || "").trim().toLowerCase(), u = id && await findUser(env, id);
+  const b = await readJson(request), id = String(b.id || "").trim().toLowerCase(), u = id && await findUser(env, id);
   if (!u) return J({ error: "مفيش حساب بالبيانات دي" }, 404);
   const [st, body] = await issueOtp(env, request, u.email); return J(body, st);
 }
 async function forgotFinish(request, env) {
-  const b = await request.json(), id = String(b.id || "").trim().toLowerCase(), pass = String(b.pass || ""), u = id && await findUser(env, id);
+  const b = await readJson(request), id = String(b.id || "").trim().toLowerCase(), pass = String(b.pass || ""), u = id && await findUser(env, id);
   if (!u) return J({ error: "مفيش حساب بالبيانات دي" }, 404);
   if (pass.length < 6 || pass.length > 100) return J({ error: "كلمة السر الجديدة 6 حروف على الأقل" }, 400);
   const v = await checkOtp(env, u.email, b.code, b.token); if (!v.ok) return J({ error: v.error }, 400);
   const salt = rand(12);
-  await (await db(env)).prepare("UPDATE users SET salt=?, hash=? WHERE id=?").bind(salt, await hashPw(env, pass, salt), u.id).run();
+  await (await db(env)).prepare("UPDATE users SET salt=?, hash=?, tv=COALESCE(tv,0)+1 WHERE id=?").bind(salt, await hashPw(env, pass, salt), u.id).run();
   return J({ ok: true });
 }
 async function historyAdd(request, env, a) {
-  const b = await request.json(), n = v => Math.max(0, Math.min(1e7, Math.round(+v || 0)));
+  const b = await readJson(request), n = v => Math.max(0, Math.min(1e7, Math.round(+v || 0)));
   await (await db(env)).prepare("INSERT INTO history(user_id,at,dev,cond,mn,av,mx) VALUES(?,?,?,?,?,?,?)").bind(a.user.id, Date.now(), String(b.dev || "").slice(0, 120), [0, 1, 2].includes(+b.c) ? +b.c : 1, n(b.mn), n(b.av), n(b.mx)).run();
   return J({ ok: true });
 }
@@ -375,7 +397,19 @@ async function historyList(env, a) {
   const r = await (await db(env)).prepare("SELECT at, dev, cond, mn, av, mx FROM history WHERE user_id=? ORDER BY at DESC LIMIT 100").bind(a.user.id).all();
   return J({ items: (r.results || []).map(x => ({ t: x.at, dev: x.dev, c: x.cond, mn: x.mn, av: x.av, mx: x.mx })) });
 }
+async function diag(env) {
+  GKEY = env.GEMINI_API_KEY; TKEY = env.TAVILY_API_KEY; if (env.MODEL) MODEL = env.MODEL;
+  const out = [`config: APP_SECRET=${!!env.APP_SECRET} ADMIN_PASSWORD=${!!String(env.ADMIN_PASSWORD || "").trim()} DB=${!!env.DB} GEMINI=${!!GKEY} TAVILY=${!!TKEY} BREVO=${!!env.BREVO_API_KEY} MAIL_FROM=${!!env.MAIL_FROM} OTP_DEMO=${env.OTP_DEMO === "1"} DEBUG=${env.DEBUG === "1"} model=${MODEL}`];
+  const t = async (name, f) => { const s = Date.now(); try { out.push(`${name}: OK (${await f()}) ${Date.now() - s}ms`); } catch (e) { out.push(`${name}: FAIL ${String(e.message).slice(0, 300)}`); } };
+  await t("database", async () => { const d = await db(env), u = await d.prepare("SELECT COUNT(*) AS n FROM users").first(), h = await d.prepare("SELECT COUNT(*) AS n FROM history").first(); return `users=${u.n} evaluations=${h.n}`; });
+  await t("gemini text", async () => JSON.stringify(await gem([{ text: 'أجب JSON فقط: {"ok":true}' }])));
+  await t("gemini image", async () => JSON.stringify(await gem([{ text: 'Describe the image as JSON {"seen":"..."}' }, { inline_data: { mime_type: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==" } }])));
+  await t("tavily", async () => (await tsearch("Samsung Galaxy A15 price Egypt")).length + " results");
+  return out.join("\n");
+}
+
 async function adminRoute(request, env, P, url) {
+  if (P === "/api/admin/diag") return J({ text: await diag(env) });
   const d = await db(env);
   if (P === "/api/admin/users") {
     const r = await d.prepare("SELECT u.id,u.name,u.shop,u.phone,u.email,u.trial_end,u.banned,u.created_at,(SELECT COUNT(*) FROM history h WHERE h.user_id=u.id) AS evals,(SELECT MAX(at) FROM history h WHERE h.user_id=u.id) AS last_eval FROM users u ORDER BY u.id DESC LIMIT 1000").all();
@@ -390,7 +424,7 @@ async function adminRoute(request, env, P, url) {
     return J({ log: (r.results || []).map(x => ({ t: x.at, m: x.msg })) });
   }
   if (P === "/api/admin/user" && request.method === "POST") {
-    const b = await request.json(), id = +b.id, u = await d.prepare("SELECT * FROM users WHERE id=?").bind(id).first();
+    const b = await readJson(request), id = +b.id, u = await d.prepare("SELECT * FROM users WHERE id=?").bind(id).first();
     if (!u) return J({ error: "الحساب مش موجود" }, 404);
     let msg;
     if (b.action === "days") {
@@ -400,7 +434,7 @@ async function adminRoute(request, env, P, url) {
       await d.prepare("UPDATE users SET trial_end=? WHERE id=?").bind(te, id).run();
       msg = `${days > 0 ? "زوّد" : "خصم"} ${Math.abs(days)} يوم لـ ${u.name}`;
     } else if (b.action === "ban" || b.action === "unban") {
-      await d.prepare("UPDATE users SET banned=? WHERE id=?").bind(b.action === "ban" ? 1 : 0, id).run();
+      await d.prepare("UPDATE users SET banned=?, tv=COALESCE(tv,0)+1 WHERE id=?").bind(b.action === "ban" ? 1 : 0, id).run();
       msg = `${b.action === "ban" ? "حظر" : "فك حظر"} ${u.name}`;
     } else return J({ error: "إجراء غلط" }, 400);
     await d.prepare("INSERT INTO admin_log(at,msg) VALUES(?,?)").bind(Date.now(), msg).run();
@@ -426,45 +460,34 @@ async function route(request, env) {
     if (P === "/api/history") { const a = await auth(request, env); if (a.res) return a.res; if (a.admin) return J({ items: [] }); return post ? historyAdd(request, env, a) : historyList(env, a); }
     if (P.startsWith("/api/admin/")) { const a = await auth(request, env); if (a.res) return a.res; if (!a.admin) return J({ error: "مش مسموح" }, 403); return adminRoute(request, env, P, u); }
     if (u.pathname === "/api/price" && request.method === "POST") {
-      { const au = await auth(request, env, true); if (au.res) return au.res; }
+      { const au = await auth(request, env, true); if (au.res) return au.res; const q = await quota(env, au, "price"); if (q) return q; }
       if (!setup(env)) return J({ error: "المفاتيح غير مضبوطة" }, 500);
       try {
-        const d = await request.json();
+        const d = await readJson(request);
         for (const k of ["brand", "model", "ram"]) if (!d[k] || String(d[k]).length > 60) return J({ error: "بيانات ناقصة" }, 400);
         const r = await getRanges(d);
         return J({ ranges: r.ranges });
       } catch (e) { console.error(e.message); return J({ error: "فشل جلب الأسعار" }, 500); }
     }
     if (u.pathname === "/api/scan" && request.method === "POST") {
-      { const au = await auth(request, env, true); if (au.res) return au.res; }
+      { const au = await auth(request, env, true); if (au.res) return au.res; const q = await quota(env, au, "scan"); if (q) return q; }
       GKEY = env.GEMINI_API_KEY; if (env.MODEL) MODEL = env.MODEL;
       if (!GKEY) return J({ error: "المفتاح غير مضبوط" }, 500);
-      try { return J(await scan(await request.json())); }
-      catch (e) { console.error(e.message); return J({ error: "فشل قراءة الصور", detail: String(e.message).slice(0, 300) }, 500); }
+      try { return J(await scan(await readJson(request, 6e6))); }
+      catch (e) { console.error(e.message); return J({ error: "فشل قراءة الصور", ...dbg(env, e) }, 500); }
     }
     if (u.pathname === "/api/inspect" && request.method === "POST") {
-      { const au = await auth(request, env, true); if (au.res) return au.res; }
+      { const au = await auth(request, env, true); if (au.res) return au.res; const q = await quota(env, au, "inspect"); if (q) return q; }
       GKEY = env.GEMINI_API_KEY; if (env.MODEL) MODEL = env.MODEL;
       if (!GKEY) return J({ error: "المفتاح غير مضبوط" }, 500);
-      try { return J(await inspect(await request.json())); }
-      catch (e) { console.error(e.message); return J({ error: "فشل فحص الصور", detail: String(e.message).slice(0, 300) }, 500); }
+      try { return J(await inspect(await readJson(request, 6e6))); }
+      catch (e) { console.error(e.message); return J({ error: "فشل فحص الصور", ...dbg(env, e) }, 500); }
     }
     if (u.pathname === "/api/info" && request.method === "POST") {
-      { const au = await auth(request, env, true); if (au.res) return au.res; }
+      { const au = await auth(request, env, true); if (au.res) return au.res; const q = await quota(env, au, "info"); if (q) return q; }
       if (!setup(env)) return J({ error: "المفاتيح غير مضبوطة" }, 500);
-      try { const d = await request.json(); if (!d.brand || !d.model) return J({ error: "بيانات ناقصة" }, 400); return J(await info(d)); }
-      catch (e) { console.error(e.message); return J({ error: "فشل جلب المعلومات", detail: String(e.message).slice(0, 300) }, 500); }
-    }
-    if (u.pathname === "/diag") {
-      GKEY = env.GEMINI_API_KEY; TKEY = env.TAVILY_API_KEY; if (env.MODEL) MODEL = env.MODEL;
-      const out = [`config: APP_SECRET=${!!env.APP_SECRET} ADMIN_PASSWORD=${!!String(env.ADMIN_PASSWORD || "").trim()} DB=${!!env.DB} GEMINI=${!!GKEY} TAVILY=${!!TKEY} BREVO=${!!env.BREVO_API_KEY} MAIL_FROM=${!!env.MAIL_FROM} OTP_DEMO=${env.OTP_DEMO === "1"} model=${MODEL}`];
-      try { const c = await (await db(env)).prepare("SELECT COUNT(*) AS n FROM users").first(); out.push(`database: OK (users=${c.n})`); } catch (e) { out.push("database: FAIL " + String(e.message).slice(0, 200)); }
-      if (!String(env.ADMIN_PASSWORD || "").trim() || u.searchParams.get("k") !== String(env.ADMIN_PASSWORD).trim()) { out.push("لتشغيل اختبار Gemini وTavily افتح /diag?k=كلمة_سر_الأدمن"); return T(out.join("\n")); }
-      const t = async (name, f) => { const s = Date.now(); try { out.push(`${name}: OK (${await f()}) ${Date.now() - s}ms`); } catch (e) { out.push(`${name}: FAIL ${String(e.message).slice(0, 300)}`); } };
-      await t("gemini text", async () => JSON.stringify(await gem([{ text: 'أجب JSON فقط: {"ok":true}' }])));
-      await t("gemini image", async () => JSON.stringify(await gem([{ text: 'Describe the image as JSON {"seen":"..."}' }, { inline_data: { mime_type: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==" } }])));
-      await t("tavily", async () => (await tsearch("Samsung Galaxy A15 price Egypt")).length + " results");
-      return T(out.join("\n"));
+      try { const d = await readJson(request); if (!d.brand || !d.model) return J({ error: "بيانات ناقصة" }, 400); return J(await info(d)); }
+      catch (e) { console.error(e.message); return J({ error: "فشل جلب المعلومات", ...dbg(env, e) }, 500); }
     }
     return new Response("Not found", { status: 404 });
 }
@@ -475,7 +498,9 @@ export default {
     catch (e) {
       console.error(e.message);
       const m = String(e.message);
-      return J({ error: /APP_SECRET/.test(m) ? "إعداد السيرفر ناقص: ضيف APP_SECRET في Cloudflare" : /DB not bound/.test(m) ? "قاعدة البيانات مش مربوطة بالمشروع" : "خطأ في السيرفر", detail: m.slice(0, 200) }, 500);
+      if (e instanceof Big) return J({ error: "الطلب كبير أوي" }, 413);
+      if (e instanceof SyntaxError) return J({ error: "طلب غير صالح" }, 400);
+      return J({ error: /APP_SECRET/.test(m) ? "إعداد السيرفر ناقص: ضيف APP_SECRET في Cloudflare" : /DB not bound/.test(m) ? "قاعدة البيانات مش مربوطة بالمشروع" : "خطأ في السيرفر", ...dbg(env, e) }, 500);
     }
   }
 };
