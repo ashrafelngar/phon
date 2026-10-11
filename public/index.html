@@ -231,6 +231,7 @@ function adView(){const us=AD.users,n=f=>us.filter(f).length,ev=us.reduce((s,x)=
  <div class="fl" style="margin-top:12px"><span>🔎</span><input id="aq" placeholder="ابحث بالاسم أو الرقم أو الإيميل أو المحل" value="${esc(AD.q)}" oninput="adq(this.value)"></div>
  <div class="seg">${[["all","الكل"],["ok","شغالة"],["exp","منتهية"],["ban","محظور"]].map(([k,t])=>`<button class="${AD.f===k?"on":""}" onclick="adf('${k}')">${t}</button>`).join("")}</div></div>
  <div id="al"></div>
+ <div class="card"><h3>حالة النظام</h3><button class="sec full sm" onclick="adsys()">فحص النظام</button><pre id="asys" class="pre" style="display:none;direction:ltr;text-align:left"></pre></div>
  <div class="card"><h3>سجل العمليات</h3>${AD.log.length?AD.log.map(l=>`<div class="mut">${new Date(l.t).toLocaleString("ar-EG")} – ${esc(l.m)}</div>`).join(""):`<p class="mut">لا توجد عمليات.</p>`}</div>`;adList()}
 function adList(){const q=nrm(AD.q).trim(),now=Date.now(),us=AD.users.filter(x=>(AD.f==="all"||(AD.f==="ban"?x.ban:AD.f==="exp"?!x.ban&&x.exp<now:!x.ban&&x.exp>=now))&&(!q||nrm([x.name,x.shop,x.phone,x.email].join(" ")).includes(q)));
  $("#al").innerHTML=us.length?us.map(x=>{const [st,c]=stOf(x),h=AD.hist[x.id];return `<div class="ac"><div class="r1"><b>${esc(x.name)}</b><span class="chip s-${c}">${st}</span></div><div class="mut">🏪 ${esc(x.shop)}</div>
@@ -239,6 +240,7 @@ function adList(){const q=nrm(AD.q).trim(),now=Date.now(),us=AD.users.filter(x=>
  <div class="row" style="margin-top:8px"><button class="sm" onclick="adm(${x.id},'days',7)">+7 أيام</button><button class="sm" onclick="adm(${x.id},'days',30)">+30 يوم</button><button class="sm sec" onclick="adm(${x.id},'days',-7)">-7 أيام</button><button class="sm sec" onclick="adc(${x.id})">أيام أخرى</button></div>
  <div class="row" style="margin-top:6px"><button class="sm ${x.ban?"sec":"bad"}" onclick="adm(${x.id},'${x.ban?"unban":"ban"}')">${x.ban?"فك الحظر":"حظر"}</button><button class="sm sec" onclick="adh(${x.id})">${AD.open===x.id?"إخفاء السجل":"سجل الفحوصات"}</button></div>
  ${AD.open===x.id?`<div class="ah">${h===undefined?`<p class="mut">جاري التحميل…</p>`:h.length?h.map(i=>`<div class="rc" style="--c:${CC[i.c]||CC[1]};margin:6px 0"><div class="r1"><b>${esc(i.dev)}</b><span class="chip">${CN[i.c]||"-"}</span></div><div class="r2">${fdate(i.t)}</div><div class="r3"><div><span>الأدنى</span>${fmt(i.mn)}</div><div class="mid"><span>المتوسط</span>${fmt(i.av)}</div><div><span>الأقصى</span>${fmt(i.mx)}</div></div></div>`).join(""):`<p class="mut">مفيش فحوصات لسه.</p>`}</div>`:""}</div>`}).join(""):`<div class="card"><p class="mut">مفيش نتايج.</p></div>`}
+async function adsys(){const e=$("#asys");e.style.display="block";e.textContent="جاري الفحص…";try{e.textContent=(await api("/api/admin/diag")).text}catch(x){e.textContent=(x&&x.error)||"فشل"}}
 function adq(v){AD.q=v;adList()}
 function adf(k){AD.f=k;adView()}
 async function adh(id){if(AD.open===id){AD.open=null;return adList()}AD.open=id;adList();if(AD.hist[id]===undefined){try{AD.hist[id]=(await api("/api/admin/history?uid="+id)).history}catch(e){AD.hist[id]=[]}adList()}}
