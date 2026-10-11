@@ -231,19 +231,12 @@ async function hmac(secret, msg) {
   return b64u(await crypto.subtle.sign("HMAC", k, enc.encode(msg)));
 }
 const same = (a, b) => { if (a.length !== b.length) return false; let r = 0; for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i); return r === 0; };
-const normPhone = v => { const m = /^(?:0|20)?(1[0125]\d{8})$/.exec(String(v || "").replace(/\D/g, "")); return m ? "20" + m[1] : ""; };
-const otpSecret = env => env.OTP_SECRET || (env.GEMINI_API_KEY || "") + (env.TAVILY_API_KEY || "");
-const sentAt = new Map(), sentIp = new Map(), tries = new Map();
+const otpSecret = env => env.APP_SECRET || env.OTP_SECRET || (env.GEMINI_API_KEY || "") + (env.TAVILY_API_KEY || "");
+const sentAt = new Map(), sentIp = new Map(), tries = new Map(), loginIp = new Map();
 const recent = (m, k, ms) => { if (m.size > 5000) m.clear(); const now = Date.now(), a = (m.get(k) || []).filter(t => now - t < ms); m.set(k, a); return a; };
-
-async function sendSms(env, phone, code) {
-  const qs = new URLSearchParams({ environment: env.SMSMISR_ENV === "2" ? "2" : "1", username: env.SMSMISR_USER, password: env.SMSMISR_PASS, sender: env.SMSMISR_SENDER, mobile: phone, template: env.SMSMISR_TEMPLATE, otp: code });
-  const r = await fetch("https://smsmisr.com/api/OTP/?" + qs, { method: "POST" });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok || !["4901", "1901"].includes(String(j.code))) throw new Error("sms: " + JSON.stringify(j));
-}
-
 const emailNorm = v => { v = String(v || "").trim().toLowerCase(); return v.length <= 120 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v) ? v : ""; };
+const phoneOk = v => { const d = String(v || "").replace(/\D/g, ""); return /^01[0125]\d{8}$/.test(d) ? d : ""; };
+
 async function sendMail(env, to, code) {
   const r = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
@@ -254,34 +247,161 @@ async function sendMail(env, to, code) {
   if (!r.ok) throw new Error("mail: " + r.status + " " + (await r.text()).slice(0, 200));
 }
 
-async function otpSend(request, env) {
-  const b = await request.json(), wantMail = b.email !== undefined, id = wantMail ? emailNorm(b.email) : normPhone(b.phone);
-  if (!id) return J({ error: wantMail ? "اكتب إيميل صحيح" : "اكتب رقم موبايل مصري صحيح" }, 400);
+// يرسل كود تحقق للإيميل ويرجّع [status, body]
+async function issueOtp(env, request, id) {
   const ip = request.headers.get("cf-connecting-ip") || "x", a = recent(sentAt, id, 6e5), c = recent(sentIp, ip, 36e5);
-  if (a.length >= 3 || c.length >= 10) return J({ error: "محاولات كتير، جرّب بعد شوية" }, 429);
+  if (a.length >= 3 || c.length >= 10) return [429, { error: "محاولات كتير، جرّب بعد شوية" }];
   a.push(Date.now()); c.push(Date.now());
   const code = String(100000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900000)), exp = Date.now() + 3e5;
   const token = exp + "." + await hmac(otpSecret(env), `${id}|${exp}|${code}`);
-  if (wantMail && env.BREVO_API_KEY && env.MAIL_FROM) {
-    try { await sendMail(env, id, code); } catch (e) { console.error(e.message); return J({ error: "فشل إرسال الإيميل، جرّب تاني" }, 502); }
-    return J({ token });
+  if (env.BREVO_API_KEY && env.MAIL_FROM) {
+    try { await sendMail(env, id, code); } catch (e) { console.error(e.message); return [502, { error: "فشل إرسال الإيميل، جرّب تاني" }]; }
+    return [200, { token }];
   }
-  if (!wantMail && env.SMSMISR_USER && env.SMSMISR_PASS && env.SMSMISR_SENDER && env.SMSMISR_TEMPLATE) {
-    try { await sendSms(env, id, code); } catch (e) { console.error(e.message); return J({ error: "فشل إرسال الرسالة، جرّب تاني" }, 502); }
-    return J({ token });
-  }
-  if (env.OTP_DEMO === "1") return J({ token, demo: code });
-  return J({ error: wantMail ? "خدمة الإيميل مش متفعّلة لسه" : "خدمة الرسائل مش متفعّلة لسه" }, 503);
+  if (env.OTP_DEMO === "1") return [200, { token, demo: code }];
+  return [503, { error: "خدمة الإيميل مش متفعّلة لسه" }];
 }
 
-async function otpVerify(request, env) {
-  const b = await request.json(), id = b.email !== undefined ? emailNorm(b.email) : normPhone(b.phone), code = String(b.code), [exp, sig] = String(b.token || "").split(".");
-  if (!id || !/^\d{6}$/.test(code) || !exp || !sig) return J({ ok: false, error: "بيانات ناقصة" }, 400);
-  if (+exp < Date.now()) return J({ ok: false, error: "الكود انتهت صلاحيته، اطلب كود جديد" }, 400);
+async function checkOtp(env, id, code, token) {
+  const [exp, sig] = String(token || "").split("."); code = String(code || "");
+  if (!id || !/^\d{6}$/.test(code) || !exp || !sig) return { error: "اكتب كود التحقق (6 أرقام)" };
+  if (+exp < Date.now()) return { error: "الكود انتهت صلاحيته، اطلب كود جديد" };
   if (tries.size > 5000) tries.clear();
   const n = (tries.get(sig) || 0) + 1; tries.set(sig, n);
-  if (n > 5) return J({ ok: false, error: "محاولات كتير، اطلب كود جديد" }, 429);
-  return same(await hmac(otpSecret(env), `${id}|${exp}|${code}`), sig) ? J({ ok: true }) : J({ ok: false, error: "الكود غلط" }, 400);
+  if (n > 5) return { error: "محاولات كتير، اطلب كود جديد" };
+  return same(await hmac(otpSecret(env), `${id}|${exp}|${code}`), sig) ? { ok: true } : { error: "الكود غلط" };
+}
+
+// ---------- الحسابات والتجار (قاعدة D1) ----------
+const DAY = 864e5;
+let schemaReady = false;
+async function db(env) {
+  if (!env.DB) throw new Error("DB not bound");
+  if (!schemaReady) {
+    await env.DB.batch([
+      env.DB.prepare("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, shop TEXT, addr TEXT, phone TEXT UNIQUE, email TEXT UNIQUE, salt TEXT, hash TEXT, trial_end INTEGER, banned INTEGER DEFAULT 0, created_at INTEGER)"),
+      env.DB.prepare("CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, at INTEGER, dev TEXT, cond INTEGER, mn INTEGER, av INTEGER, mx INTEGER)"),
+      env.DB.prepare("CREATE INDEX IF NOT EXISTS h_user ON history(user_id, at)"),
+      env.DB.prepare("CREATE TABLE IF NOT EXISTS admin_log (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER, msg TEXT)")
+    ]);
+    schemaReady = true;
+  }
+  return env.DB;
+}
+const appSecret = env => { if (!env.APP_SECRET) throw new Error("APP_SECRET missing"); return env.APP_SECRET; };
+const rand = n => b64u(crypto.getRandomValues(new Uint8Array(n)));
+async function hashPw(env, pass, salt) {
+  const k = await crypto.subtle.importKey("raw", enc.encode(pass + appSecret(env)), "PBKDF2", false, ["deriveBits"]);
+  return b64u(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: enc.encode(salt), iterations: 10000 }, k, 256));
+}
+const unb64 = s => atob(s.replace(/-/g, "+").replace(/_/g, "/"));
+async function makeToken(env, p) { const body = b64u(enc.encode(JSON.stringify(p))); return body + "." + await hmac(appSecret(env), "t|" + body); }
+async function readToken(env, tk) {
+  const [body, sig] = String(tk || "").split("."); if (!body || !sig) return null;
+  if (!same(await hmac(appSecret(env), "t|" + body), sig)) return null;
+  try { const p = JSON.parse(unb64(body)); return p.exp > Date.now() ? p : null; } catch (e) { return null; }
+}
+const pub = u => ({ id: u.id, name: u.name, shop: u.shop, phone: u.phone, exp: u.trial_end, ban: !!u.banned, admin: false });
+const ADMIN = { id: 0, name: "الأدمن", shop: "-", exp: 9e15, ban: false, admin: true };
+
+async function auth(request, env, paid) {
+  const p = await readToken(env, (request.headers.get("authorization") || "").replace(/^Bearer /, ""));
+  if (!p) return { res: J({ error: "سجّل دخول الأول" }, 401) };
+  if (p.adm) return { user: ADMIN, admin: true };
+  const u = await (await db(env)).prepare("SELECT * FROM users WHERE id=?").bind(p.uid).first();
+  if (!u) return { res: J({ error: "الحساب مش موجود، سجّل دخول تاني" }, 401) };
+  if (u.banned) return { res: J({ error: "الحساب محظور. كلّم الأدمن." }, 403) };
+  if (paid && u.trial_end <= Date.now()) return { res: J({ error: "انتهت التجربة. تواصل مع الأدمن للاشتراك." }, 403) };
+  return { user: u };
+}
+async function findUser(env, id) { return (await db(env)).prepare("SELECT * FROM users WHERE email=? OR phone=?").bind(id, id.replace(/\D/g, "") || "x").first(); }
+
+async function signupStart(request, env) {
+  const b = await request.json(), phone = phoneOk(b.phone), email = emailNorm(b.email);
+  if (!phone) return J({ error: "اكتب رقم موبايل مصري صحيح (11 رقم)" }, 400);
+  if (!email) return J({ error: "اكتب إيميل صحيح" }, 400);
+  if (await (await db(env)).prepare("SELECT 1 AS x FROM users WHERE phone=? OR email=?").bind(phone, email).first()) return J({ error: "الرقم أو الإيميل ده مسجّل قبل كده" }, 409);
+  const [st, body] = await issueOtp(env, request, email); return J(body, st);
+}
+async function signupFinish(request, env) {
+  const b = await request.json(), phone = phoneOk(b.phone), email = emailNorm(b.email), clean = v => String(v || "").trim().slice(0, 80), pass = String(b.pass || "");
+  const name = clean(b.name), shop = clean(b.shop), addr = clean(b.addr);
+  if (!name || !shop || !addr || !phone || !email || pass.length < 6 || pass.length > 100) return J({ error: "كمّل كل البيانات (كلمة السر 6 حروف على الأقل)" }, 400);
+  const v = await checkOtp(env, email, b.code, b.token); if (!v.ok) return J({ error: v.error }, 400);
+  const salt = rand(12), hash = await hashPw(env, pass, salt), now = Date.now(), d = await db(env);
+  try {
+    const r = await d.prepare("INSERT INTO users(name,shop,addr,phone,email,salt,hash,trial_end,banned,created_at) VALUES(?,?,?,?,?,?,?,?,0,?)").bind(name, shop, addr, phone, email, salt, hash, now + 7 * DAY, now).run();
+    const u = { id: r.meta.last_row_id, name, shop, phone, trial_end: now + 7 * DAY, banned: 0 };
+    return J({ token: await makeToken(env, { uid: u.id, exp: now + 30 * DAY }), user: pub(u) });
+  } catch (e) { if (/UNIQUE/i.test(e.message)) return J({ error: "الرقم أو الإيميل ده مسجّل قبل كده" }, 409); throw e; }
+}
+async function login(request, env) {
+  const ip = request.headers.get("cf-connecting-ip") || "x", att = recent(loginIp, ip, 6e5);
+  if (att.length >= 15) return J({ error: "محاولات كتير، جرّب بعد شوية" }, 429);
+  const b = await request.json(), id = String(b.id || "").trim().toLowerCase(), pass = String(b.pass || ""), bad = () => { att.push(Date.now()); return J({ error: "الرقم أو كلمة السر غلط" }, 401); };
+  if (!id || !pass) return bad();
+  if (id === "admin") {
+    if (!env.ADMIN_PASSWORD) return J({ error: "كلمة سر الأدمن مش مضبوطة (ADMIN_PASSWORD)" }, 500);
+    const k = appSecret(env);
+    if (!same(await hmac(k, "a|" + pass), await hmac(k, "a|" + env.ADMIN_PASSWORD))) return bad();
+    return J({ token: await makeToken(env, { adm: 1, exp: Date.now() + 7 * DAY }), user: ADMIN });
+  }
+  const u = await findUser(env, id);
+  if (!u || !same(await hashPw(env, pass, u.salt), u.hash)) return bad();
+  if (u.banned) return J({ error: "الحساب محظور. كلّم الأدمن." }, 403);
+  return J({ token: await makeToken(env, { uid: u.id, exp: Date.now() + 30 * DAY }), user: pub(u) });
+}
+async function forgotStart(request, env) {
+  const b = await request.json(), id = String(b.id || "").trim().toLowerCase(), u = id && await findUser(env, id);
+  if (!u) return J({ error: "مفيش حساب بالبيانات دي" }, 404);
+  const [st, body] = await issueOtp(env, request, u.email); return J(body, st);
+}
+async function forgotFinish(request, env) {
+  const b = await request.json(), id = String(b.id || "").trim().toLowerCase(), pass = String(b.pass || ""), u = id && await findUser(env, id);
+  if (!u) return J({ error: "مفيش حساب بالبيانات دي" }, 404);
+  if (pass.length < 6 || pass.length > 100) return J({ error: "كلمة السر الجديدة 6 حروف على الأقل" }, 400);
+  const v = await checkOtp(env, u.email, b.code, b.token); if (!v.ok) return J({ error: v.error }, 400);
+  const salt = rand(12);
+  await (await db(env)).prepare("UPDATE users SET salt=?, hash=? WHERE id=?").bind(salt, await hashPw(env, pass, salt), u.id).run();
+  return J({ ok: true });
+}
+async function historyAdd(request, env, a) {
+  const b = await request.json(), n = v => Math.max(0, Math.min(1e7, Math.round(+v || 0)));
+  await (await db(env)).prepare("INSERT INTO history(user_id,at,dev,cond,mn,av,mx) VALUES(?,?,?,?,?,?,?)").bind(a.user.id, Date.now(), String(b.dev || "").slice(0, 120), [0, 1, 2].includes(+b.c) ? +b.c : 1, n(b.mn), n(b.av), n(b.mx)).run();
+  return J({ ok: true });
+}
+async function historyList(env, a) {
+  const r = await (await db(env)).prepare("SELECT at, dev, cond, mn, av, mx FROM history WHERE user_id=? ORDER BY at DESC LIMIT 100").bind(a.user.id).all();
+  return J({ items: (r.results || []).map(x => ({ t: x.at, dev: x.dev, c: x.cond, mn: x.mn, av: x.av, mx: x.mx })) });
+}
+async function adminRoute(request, env, P) {
+  const d = await db(env);
+  if (P === "/api/admin/users") {
+    const r = await d.prepare("SELECT id,name,shop,phone,email,trial_end,banned,created_at FROM users ORDER BY id DESC LIMIT 500").all();
+    return J({ users: (r.results || []).map(u => ({ id: u.id, name: u.name, shop: u.shop, phone: u.phone, email: u.email, exp: u.trial_end, ban: !!u.banned, created: u.created_at })) });
+  }
+  if (P === "/api/admin/log") {
+    const r = await d.prepare("SELECT at, msg FROM admin_log ORDER BY id DESC LIMIT 50").all();
+    return J({ log: (r.results || []).map(x => ({ t: x.at, m: x.msg })) });
+  }
+  if (P === "/api/admin/user" && request.method === "POST") {
+    const b = await request.json(), id = +b.id, u = await d.prepare("SELECT * FROM users WHERE id=?").bind(id).first();
+    if (!u) return J({ error: "الحساب مش موجود" }, 404);
+    let msg;
+    if (b.action === "days") {
+      const days = Math.max(-365, Math.min(365, Math.trunc(+b.days || 0)));
+      if (!days) return J({ error: "عدد الأيام غلط" }, 400);
+      const te = (days > 0 ? Math.max(u.trial_end, Date.now()) : u.trial_end) + days * DAY;
+      await d.prepare("UPDATE users SET trial_end=? WHERE id=?").bind(te, id).run();
+      msg = `${days > 0 ? "زوّد" : "خصم"} ${Math.abs(days)} يوم لـ ${u.name}`;
+    } else if (b.action === "ban" || b.action === "unban") {
+      await d.prepare("UPDATE users SET banned=? WHERE id=?").bind(b.action === "ban" ? 1 : 0, id).run();
+      msg = `${b.action === "ban" ? "حظر" : "فك حظر"} ${u.name}`;
+    } else return J({ error: "إجراء غلط" }, 400);
+    await d.prepare("INSERT INTO admin_log(at,msg) VALUES(?,?)").bind(Date.now(), msg).run();
+    return J({ ok: true });
+  }
+  return J({ error: "Not found" }, 404);
 }
 
 function setup(env) {
@@ -290,10 +410,18 @@ function setup(env) {
   return GKEY && TKEY;
 }
 
-export default {
-  async fetch(request, env) {
-    const u = new URL(request.url);
+async function route(request, env) {
+    const u = new URL(request.url), P = u.pathname, post = request.method === "POST";
+    if (P === "/api/signup/start" && post) return signupStart(request, env);
+    if (P === "/api/signup/finish" && post) return signupFinish(request, env);
+    if (P === "/api/login" && post) return login(request, env);
+    if (P === "/api/forgot/start" && post) return forgotStart(request, env);
+    if (P === "/api/forgot/finish" && post) return forgotFinish(request, env);
+    if (P === "/api/me") { const a = await auth(request, env); return a.res || J({ user: a.admin ? ADMIN : pub(a.user) }); }
+    if (P === "/api/history") { const a = await auth(request, env); if (a.res) return a.res; if (a.admin) return J({ items: [] }); return post ? historyAdd(request, env, a) : historyList(env, a); }
+    if (P.startsWith("/api/admin/")) { const a = await auth(request, env); if (a.res) return a.res; if (!a.admin) return J({ error: "مش مسموح" }, 403); return adminRoute(request, env, P); }
     if (u.pathname === "/api/price" && request.method === "POST") {
+      { const au = await auth(request, env, true); if (au.res) return au.res; }
       if (!setup(env)) return J({ error: "المفاتيح غير مضبوطة" }, 500);
       try {
         const d = await request.json();
@@ -303,25 +431,27 @@ export default {
       } catch (e) { console.error(e.message); return J({ error: "فشل جلب الأسعار" }, 500); }
     }
     if (u.pathname === "/api/scan" && request.method === "POST") {
+      { const au = await auth(request, env, true); if (au.res) return au.res; }
       GKEY = env.GEMINI_API_KEY; if (env.MODEL) MODEL = env.MODEL;
       if (!GKEY) return J({ error: "المفتاح غير مضبوط" }, 500);
       try { return J(await scan(await request.json())); }
       catch (e) { console.error(e.message); return J({ error: "فشل قراءة الصور", detail: String(e.message).slice(0, 300) }, 500); }
     }
-    if (u.pathname === "/api/otp/send" && request.method === "POST") { try { return await otpSend(request, env); } catch (e) { console.error(e.message); return J({ error: "فشل" }, 500); } }
-    if (u.pathname === "/api/otp/verify" && request.method === "POST") { try { return await otpVerify(request, env); } catch (e) { console.error(e.message); return J({ error: "فشل" }, 500); } }
     if (u.pathname === "/api/inspect" && request.method === "POST") {
+      { const au = await auth(request, env, true); if (au.res) return au.res; }
       GKEY = env.GEMINI_API_KEY; if (env.MODEL) MODEL = env.MODEL;
       if (!GKEY) return J({ error: "المفتاح غير مضبوط" }, 500);
       try { return J(await inspect(await request.json())); }
       catch (e) { console.error(e.message); return J({ error: "فشل فحص الصور", detail: String(e.message).slice(0, 300) }, 500); }
     }
     if (u.pathname === "/api/info" && request.method === "POST") {
+      { const au = await auth(request, env, true); if (au.res) return au.res; }
       if (!setup(env)) return J({ error: "المفاتيح غير مضبوطة" }, 500);
       try { const d = await request.json(); if (!d.brand || !d.model) return J({ error: "بيانات ناقصة" }, 400); return J(await info(d)); }
       catch (e) { console.error(e.message); return J({ error: "فشل جلب المعلومات", detail: String(e.message).slice(0, 300) }, 500); }
     }
     if (u.pathname === "/diag") {
+      if (!env.ADMIN_PASSWORD || u.searchParams.get("k") !== env.ADMIN_PASSWORD) return T("ممنوع. افتح /diag?k=كلمة_سر_الأدمن", 403);
       GKEY = env.GEMINI_API_KEY; TKEY = env.TAVILY_API_KEY; if (env.MODEL) MODEL = env.MODEL;
       const out = [`keys: GEMINI=${!!GKEY} TAVILY=${!!TKEY} BREVO=${!!env.BREVO_API_KEY} MAIL_FROM=${!!env.MAIL_FROM} model=${MODEL}`];
       const t = async (name, f) => { const s = Date.now(); try { out.push(`${name}: OK (${await f()}) ${Date.now() - s}ms`); } catch (e) { out.push(`${name}: FAIL ${String(e.message).slice(0, 300)}`); } };
@@ -330,14 +460,16 @@ export default {
       await t("tavily", async () => (await tsearch("Samsung Galaxy A15 price Egypt")).length + " results");
       return T(out.join("\n"));
     }
-    if (u.pathname === "/test") {
-      if (!setup(env)) return T("ناقص مفتاح: تأكد من GEMINI_API_KEY و TAVILY_API_KEY في Cloudflare", 500);
-      const q = u.searchParams;
-      try {
-        const r = await getRanges({ brand: q.get("brand") || "Realme", model: q.get("model") || "C55", ram: q.get("ram") || "8", cond: q.get("c") || "1", storage: q.get("st") || "", grade: q.get("g") || "", customs: "", notes: [] });
-        return T("الحالة: " + r.cond + "\nعدد نتائج البحث: " + r.sources + "\nالأسعار المستخرجة: " + r.prices.join(", ") + "\nالمدى: " + JSON.stringify(r.ranges[r.cond]));
-      } catch (e) { return T("خطأ: " + e.message, 500); }
-    }
     return new Response("Not found", { status: 404 });
+}
+
+export default {
+  async fetch(request, env) {
+    try { return await route(request, env); }
+    catch (e) {
+      console.error(e.message);
+      const m = String(e.message);
+      return J({ error: /APP_SECRET/.test(m) ? "إعداد السيرفر ناقص: ضيف APP_SECRET في Cloudflare" : /DB not bound/.test(m) ? "قاعدة البيانات مش مربوطة بالمشروع" : "خطأ في السيرفر", detail: m.slice(0, 200) }, 500);
+    }
   }
 };
