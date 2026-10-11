@@ -73,14 +73,15 @@ body.auth header{display:none}.au{padding-top:6px}
 <script>
 const $=s=>document.querySelector(s),ADMIN_PHONE="01102394162",WA="201102394162";
 const DB={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
-let mem={users:null,me:null,hist:null,log:null};
-const users=()=>mem.users??(mem.users=DB.get("u",[{id:1,name:"الأدمن",shop:"-",addr:"-",phone:"admin",pass:"admin123",admin:1,exp:Date.now()+9e12,ban:0}]));
-const saveU=()=>DB.set("u",mem.users);
-const hist=()=>mem.hist??(mem.hist=DB.get("h",[])),logs=()=>mem.log??(mem.log=DB.get("l",[]));
-let me=DB.get("me",null),view="auth",tab="in",pending=null,W=null;
+let TK=DB.get("tk",null),U=null,HC=null,view="auth",tab="in",W=null;
+const SP=t=>`<div class="card ld"><div class="spin"></div><p class="mut">${t}</p></div>`;
+async function api(p,b){const o={method:b?"POST":"GET",headers:{}};if(b){o.headers["Content-Type"]="application/json";o.body=JSON.stringify(b)}if(TK)o.headers.Authorization="Bearer "+TK;
+ const r=await fetch(p,o);let d;try{d=await r.json()}catch(e){throw{error:"رد غير متوقع من السيرفر",detail:"HTTP "+r.status}}
+ if(r.status===401&&TK){TK=null;U=null;HC=null;DB.set("tk",null);view="auth";render()}
+ if(!r.ok)throw d;return d}
 const $a=$("#app");
 function toast(t,ms=3500){const e=$("#toast");e.textContent=t;e.style.display="block";clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display="none",ms)}
-const cur=()=>me&&users().find(u=>u.id===me);
+const cur=()=>U;
 const daysLeft=u=>Math.ceil((u.exp-Date.now())/864e5);
 const fmt=n=>Math.round(n).toLocaleString("en-US");
 const BR={Samsung:["Galaxy A15","Galaxy A25","Galaxy A35","Galaxy A55","Galaxy S23","Galaxy S24"],Xiaomi:["Redmi 12","Redmi Note 12","Redmi Note 13","Poco X6","Xiaomi 13T"],Oppo:["Reno 8","Reno 10","A58","A78","Find X5"],Realme:["C55","C67","11 Pro","12 Pro","GT Neo 5"],Vivo:["Y17s","Y27","V27","V29"],Infinix:["Hot 30","Note 30","Zero 30","Smart 8"],Tecno:["Spark 10","Camon 20","Phantom X2"],Honor:["X7b","X8a","90","Magic5"],Huawei:["Nova 11","P40","Y9a"],Motorola:["G54","Edge 40"],OnePlus:["Nord CE3","11"],Nokia:["G21","C32"]};
@@ -105,36 +106,32 @@ function A(){const up=tab=="up",F=(i,ic,ph,ex="")=>`<div class="fl"><span>${ic}<
  <p class="sw">${up?`عندك حساب؟ <a href="#" onclick="tab='in';A();return false">سجّل دخول</a>`:`مش عندك حساب؟ <a href="#" onclick="tab='up';A();return false">أنشئ حساب جديد</a>`}</p></div><div id="otp"></div></div>`}
 
 function err(m){const e=$("#er");if(e)e.textContent=m;toast(m)}
-function login(){const p=$("#ph").value.trim(),w=$("#pw").value;if(!p||!w)return err("اكتب رقم الهاتف وكلمة السر");
- const u=users().find(x=>(x.phone===p||(x.email&&x.email===p.toLowerCase()))&&x.pass===w);if(!u)return err("الرقم أو كلمة السر غلط");me=u.id;DB.set("me",me);view=u.admin?"admin":"home";render()}
-function logout(){me=null;DB.set("me",null);view="auth";render()}
-const mask=e=>String(e).replace(/^(.).*(@.*)$/,"$1***$2");
-async function sms(cb,label,email){const box=$("#otp");box.innerHTML=`<div class="card ld"><div class="spin"></div><p class="mut">بنبعت الكود…</p></div>`;
- let tok;try{const r=await fetch("/api/otp/send",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})}),d=await r.json();if(!r.ok)throw d;tok=d.token;if(d.demo)toast("كود التجربة: "+d.demo,12000)}
- catch(e){box.innerHTML="";return err((e&&e.error)||"مقدرناش نبعت الكود، جرّب تاني")}
- box.innerHTML=`<div class="card"><h3>${label}</h3><p class="mut">يُرجى إدخال رمز التحقق المُرسل إلى بريدك الإلكتروني. <a href="#" id="nc">لم يصل الكود؟</a></p><div class="fl"><span>🔑</span><input id="cd" inputmode="numeric" maxlength="6" placeholder="كود التحقق"></div><div id="er2" class="err"></div><button class="full big1" id="okb">تأكيد</button><p class="sw"><a href="#" id="rs">إعادة إرسال الكود</a></p><p class="mut" id="nh" style="display:none;text-align:center">إذا لم تجده في البريد الوارد، يُرجى التحقق من مجلد الرسائل غير المرغوب فيها.</p></div>`;
+async function login(){const p=$("#ph").value.trim(),w=$("#pw").value;if(!p||!w)return err("اكتب رقم الهاتف وكلمة السر");
+ try{const d=await api("/api/login",{id:p,pass:w});TK=d.token;DB.set("tk",TK);U=d.user;HC=null;view=U.admin?"admin":"home";render()}catch(e){err((e&&e.error)||"مقدرناش نسجّل الدخول، جرّب تاني")}}
+function logout(){TK=null;U=null;HC=null;DB.set("tk",null);view="auth";render()}
+async function otp(o){const box=$("#otp");box.innerHTML=SP("بنبعت الكود…");let tok;
+ try{const d=await o.start();tok=d.token;if(d.demo)toast("كود التجربة: "+d.demo,12000)}catch(e){box.innerHTML="";return err((e&&e.error)||"مقدرناش نبعت الكود، جرّب تاني")}
+ box.innerHTML=`<div class="card"><h3>${o.label}</h3><p class="mut">يُرجى إدخال رمز التحقق المُرسل إلى بريدك الإلكتروني. <a href="#" id="nc">لم يصل الكود؟</a></p><div class="fl"><span>🔑</span><input id="cd" inputmode="numeric" maxlength="6" placeholder="كود التحقق"></div>${o.extra||""}<div id="er2" class="err"></div><button class="full big1" id="okb">تأكيد</button><p class="sw"><a href="#" id="rs">إعادة إرسال الكود</a></p><p class="mut" id="nh" style="display:none;text-align:center">إذا لم تجده في البريد الوارد، يُرجى التحقق من مجلد الرسائل غير المرغوب فيها.</p></div>`;
  if(box.scrollIntoView)box.scrollIntoView({behavior:"smooth"});
- $("#rs").onclick=e=>{e.preventDefault();sms(cb,label,email)};
- $("#nc").onclick=e=>{e.preventDefault();$("#nh").style.display="block"};
- $("#okb").onclick=async()=>{const c=$("#cd").value.trim();try{const r=await fetch("/api/otp/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,code:c,token:tok})}),d=await r.json();if(!r.ok||!d.ok)throw d;cb()}catch(e){const m=(e&&e.error)||"الكود غلط";$("#er2").textContent=m;toast(m)}}}
+ $("#rs").onclick=e=>{e.preventDefault();otp(o)};$("#nc").onclick=e=>{e.preventDefault();$("#nh").style.display="block"};
+ $("#okb").onclick=async()=>{try{await o.finish($("#cd").value.trim(),tok)}catch(e){const m=(e&&e.error)||"حصلت مشكلة، جرّب تاني";$("#er2").textContent=m;toast(m)}}}
 function signup(){const d={name:$("#nm").value.trim(),shop:$("#sh").value.trim(),addr:$("#ad").value.trim(),phone:$("#ph").value.trim(),email:$("#em").value.trim().toLowerCase(),pass:$("#pw").value};
  if(!d.name||!d.shop||!d.addr||!d.phone||!d.email||d.pass.length<6)return toast("كمّل كل البيانات (كلمة السر 6 حروف على الأقل)");
  if(!/^01[0125]\d{8}$/.test(d.phone))return toast("اكتب رقم موبايل مصري صحيح (11 رقم)");
  if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.email))return toast("اكتب إيميل صحيح");
- if(users().some(u=>u.phone===d.phone||u.email===d.email))return toast("الرقم أو الإيميل ده مسجّل قبل كده");
- sms(()=>{const us=users();d.id=Date.now();d.exp=Date.now()+7*864e5;d.ban=0;us.push(d);saveU();me=d.id;DB.set("me",me);view="home";toast("تم إنشاء الحساب – 7 أيام مجاناً");render()},"أدخل كود التحقق",d.email)}
-function forgot(){const p=$("#ph").value.trim(),u=users().find(x=>x.phone===p||(x.email&&x.email===p.toLowerCase()));if(!u)return err("اكتب رقم هاتفك أو إيميلك الأول");
- if(!u.email)return err("الحساب ده مفيهوش إيميل. كلّم الدعم لاسترجاع كلمة السر.");
- sms(()=>{const n=prompt("كلمة السر الجديدة (6 حروف على الأقل)");if(n&&n.length>=6){u.pass=n;saveU();toast("تم تغيير كلمة السر")}},"كود استرجاع كلمة السر",u.email)}
+ otp({label:"أدخل كود التحقق",start:()=>api("/api/signup/start",{phone:d.phone,email:d.email}),finish:async(code,token)=>{const r=await api("/api/signup/finish",{...d,code,token});TK=r.token;DB.set("tk",TK);U=r.user;HC=null;view="home";toast("تم إنشاء الحساب – 7 أيام مجاناً");render()}})}
+function forgot(){const p=$("#ph").value.trim();if(!p)return err("اكتب رقم هاتفك أو إيميلك الأول");
+ otp({label:"كود استرجاع كلمة السر",extra:`<div class="fl"><span>🔒</span><input id="np" type="password" placeholder="كلمة السر الجديدة (6 حروف على الأقل)"></div>`,start:()=>api("/api/forgot/start",{id:p}),finish:async(code,token)=>{const np=$("#np").value;if(np.length<6)throw{error:"كلمة السر الجديدة 6 حروف على الأقل"};await api("/api/forgot/finish",{id:p,code,token,pass:np});$("#otp").innerHTML="";toast("تم تغيير كلمة السر. سجّل دخول بيها.")}})}
 
 function trial(u){const d=daysLeft(u);return d>0?"":`<div class="banner exp"><span>انتهت التجربة – تواصل مع الأدمن للاشتراك</span><button class="sm" style="background:#fff;color:#14263B" onclick="location.href='https://wa.me/${WA}'">${ADMIN_PHONE}</button></div>`}
 const AND='<svg viewBox="0 0 48 48"><path d="M10 22a14 14 0 0 1 28 0z" fill="#fff"/><rect x="10" y="25" width="28" height="16" rx="4" fill="#fff"/><path d="M15 9l4 5M33 9l-4 5" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/><circle cx="19" cy="17" r="1.8" fill="#1F4E79"/><circle cx="29" cy="17" r="1.8" fill="#1F4E79"/></svg>';
 const IPH='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="7" y="2" width="10" height="20" rx="3"/><path d="M10.5 5h3" stroke-linecap="round"/></svg>';
 const HIS='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
-function H(u){const n=hist().filter(h=>h.uid===u.id).length;$a.innerHTML=trial(u)+`<div class="greet">أهلاً ${u.name} 👋<small>${u.shop}</small></div>
+async function loadHist(){try{HC=(await api("/api/history")).items}catch(e){HC=[]}if(view==="home"){const e=$("#hc");if(e)e.textContent=HC.length+" تقييم"}else if(view==="hist")render()}
+function H(u){if(!HC)loadHist();$a.innerHTML=trial(u)+`<div class="greet">أهلاً ${esc(u.name)} 👋<small>${esc(u.shop)}</small></div>
 <button class="hero" onclick="start()"><span class="ic">${AND}</span><span class="tx"><b>تقييم جهاز أندرويد</b><small>ادخل البيانات وارفع الصور واعرف سعر الشراء</small></span><span class="go">←</span></button>
 <div class="tiles"><button class="tile" onclick="toast('تقييم الآيفون قريباً')"><span class="ic2">${IPH}</span><b>تقييم آيفون</b><em>قريباً</em></button>
-<button class="tile" onclick="view='hist';render()"><span class="ic2">${HIS}</span><b>سجل التقييمات</b><em>${n} تقييم</em></button></div>`}
+<button class="tile" onclick="view='hist';render()"><span class="ic2">${HIS}</span><b>سجل التقييمات</b><em id="hc">${HC?HC.length+" تقييم":"…"}</em></button></div>`}
 function help(){const u=cur();location.href=`https://wa.me/${WA}?text=`+encodeURIComponent(`مرحباً، أنا ${u.name} (${u.phone}) وأحتاج مساعدة.`)}
 function start(){const u=cur();if(daysLeft(u)<=0)return toast("انتهت التجربة. تواصل مع الأدمن للاشتراك.");W={s:0,brand:"",model:"",ram:"",use:"أقل من 6 شهور",img:{},i1:"",i2:"",ser:"",serD:"",b1:"",b2:"",a:{},mk:["","","","","",""],note:"",items:[],manual:false,info:null,st:""};view="wiz";render()}
 function Wz(u){const s=W.s,bar=`<div class="steps">${[0,1,2,3,4].map(i=>`<span class="${i<=s?"d":""}"></span>`).join("")}</div>`;
@@ -176,7 +173,6 @@ function mism(){const m=[],a=nz(W.ser),b=nz(W.serD),bs=[W.b1,W.b2].filter(Boolea
  if(bs.length&&ds.length&&(bs.length>1&&ds.length>1?ds.some(x=>!bs.includes(x)):!ds.some(x=>bs.includes(x))))m.push("IMEI الكرتونة مختلف عن IMEI الجهاز");return m}
 const guessBrand=b=>{b=(b||"").trim();return Object.keys(BR).find(k=>k.toLowerCase()===b.toLowerCase())||b};
 function n0(){if(!W.img.x||!W.img.c)return toast("ارفع صورة الكرتونة وصورة شاشة *#06#");scanDev()}
-async function api(p,b){const r=await fetch(p,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)});let d;try{d=await r.json()}catch(e){throw{error:"رد غير متوقع من السيرفر",detail:"HTTP "+r.status}}if(!r.ok)throw d;return d}
 const dt=e=>{const m=e&&(e.detail||e.error);return m?`<p class="mut" dir="ltr" style="font-size:11px;word-break:break-word">${esc(m)}</p>`:""};
 async function scanDev(){const M=["يرجى الانتظار…","بنقرا الـ IMEI من الجهاز…","بنقارن السيريال والأرقام…"];
  $a.innerHTML=`<div class="card ld"><div class="spin"></div><h2>جاري فحص الجهاز</h2><p class="mut" id="lm">${M[0]}</p><div class="bar"><i id="lb"></i></div></div>`;
@@ -209,9 +205,9 @@ function pic(k,el){const f=el.files[0];if(!f)return;const r=new FileReader();r.o
 function cond(){const a=W.a,g=(W.insp||{}).grade;if(a.rep==="نعم"||a.orig==="لا"||g==="poor")return 2;return g==="excellent"&&(a.acc||[]).includes("كرتونة أصلية")?0:1}
 async function calc(){const c=cond(),a=W.a,n=[];if((a.acc||[]).length<2)n.push("الملحقات ناقصة");if(a.rep==="نعم")n.push("تم فتحه أو صيانته: "+(a.parts||[]).map(p=>p==="أخرى"?(a.other||"أخرى"):p).join("، "));[["fp","البصمة أو الوش"],["cam","الكاميرات"],["snd","السماعة والمايك"]].forEach(([k,t])=>{if(a[k]==="لا تعمل")n.push(t+" لا تعمل")});
  $a.innerHTML=`<div class="card ld"><div class="spin"></div><h2>جاري تقييم سعر الجهاز</h2><p class="mut">يرجى الانتظار…</p></div>`;
- try{const r=await fetch("/api/price",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({brand:W.brand,model:W.model,ram:W.ram,customs:a.cus==="مسجل"?"مسجّل ومدفوعة":"غير مسجّل أو عليه رسوم",notes:n,cond:c,storage:W.st||"",grade:(W.insp||{}).grade||"",defects:((W.insp||{}).notes||[]).map(x=>(x.area?x.area+": ":"")+x.issue),parts:a.rep==="نعم"?(a.parts||[]).map(p=>p==="أخرى"?(a.other||"أخرى"):p):[]})});const d=await r.json();if(!r.ok)throw d;
+ try{const d=await api("/api/price",{brand:W.brand,model:W.model,ram:W.ram,customs:a.cus==="مسجل"?"مسجّل ومدفوعة":"غير مسجّل أو عليه رسوم",notes:n,cond:c,storage:W.st||"",grade:(W.insp||{}).grade||"",defects:((W.insp||{}).notes||[]).map(x=>(x.area?x.area+": ":"")+x.issue),parts:a.rep==="نعم"?(a.parts||[]).map(p=>p==="أخرى"?(a.other||"أخرى"):p):[]});
  const g=d.ranges[["excellent","good","repaired"][c]];if(!g)return fail("ملقيناش إعلانات كفاية لجهاز بالمواصفات دي دلوقتي. جرّب تاني بعد شوية.");
- const mn=g.min,mx=g.max,av=g.avg,u=cur();hist().push({uid:u.id,t:Date.now(),dev:W.brand+" "+W.model+" "+W.ram+"GB",c,mn,mx,av});DB.set("h",mem.hist);W.res={c,base:g.base,mn,mx,av,approx:!!g.approx};W.s=3;Rs()}catch(e){fail("تعذّر جلب الأسعار. افتح الموقع من رابط السيرفر وراجع الاتصال.")}}
+ const mn=g.min,mx=g.max,av=g.avg;api("/api/history",{dev:W.brand+" "+W.model+" "+W.ram+"GB",c,mn,mx,av}).then(()=>{HC=null}).catch(()=>{});W.res={c,base:g.base,mn,mx,av,approx:!!g.approx};W.s=3;Rs()}catch(e){fail((e&&e.error)||"تعذّر جلب الأسعار، جرّب تاني.")}}
 function fail(m){$a.innerHTML=`<div class="card"><h2>مش قادرين نحسب السعر</h2><p>${m}</p><div class="row"><button class="sec" onclick="W.s=4;render()">رجوع</button><button onclick="calc()">حاول تاني</button></div></div>`}
 function Rs(){const r=W.res,mis=mism();
  $a.innerHTML=`<div class="card"><h2>${W.brand} ${W.model} – ${W.ram}GB</h2><p class="mut">الحالة: ${["ممتازة","جيدة","تمت صيانته"][r.c]}</p>
@@ -219,9 +215,15 @@ function Rs(){const r=W.res,mis=mism();
 <div class="price"><div><span>الحد الأدنى</span><b>${fmt(r.mn)}</b></div><div><span>المتوسط</span><b>${fmt(r.av)}</b></div><div><span>الحد الأقصى</span><b>${fmt(r.mx)}</b></div></div>
  <button class="full" onclick="view='home';render()">رجوع للرئيسية</button></div>`}
 const CN=["ممتاز","جيدة","صيانة"],CC=["#16895A","#C98A00","#C63D3D"];
-function Hs(u){const h=hist().filter(x=>x.uid===u.id).reverse();$a.innerHTML=trial(u)+`<div class="hd"><button class="sec sm" onclick="view='home';render()">→ رجوع</button><h2>سجل التقييمات</h2></div>`+(h.length?h.map(x=>`<div class="rc" style="--c:${CC[x.c]||CC[1]}"><div class="r1"><b>${x.dev}</b><span class="chip">${CN[x.c]||"-"}</span></div><div class="r2">${new Date(x.t).toLocaleDateString("ar-EG",{day:"numeric",month:"short",year:"numeric"})}</div><div class="r3"><div><span>الأدنى</span>${fmt(x.mn)}</div><div class="mid"><span>المتوسط</span>${fmt(x.av)}</div><div><span>الأقصى</span>${fmt(x.mx)}</div></div></div>`).join(""):`<div class="empty">📋<p>لسه معملتش أي تقييم</p><button onclick="start()">ابدأ أول تقييم</button></div>`)}
-function Ad(u){const us=users().filter(x=>!x.admin),lg=logs().slice(-15).reverse();$a.innerHTML=`<div class="card"><h2>لوحة الأدمن</h2>${us.length?us.map(x=>`<div class="q"><b>${x.name}</b> – ${x.shop}<br><span class="mut">${x.phone} • باقي ${Math.max(0,daysLeft(x))} يوم ${x.ban?"• محظور":""}</span><div class="row" style="margin-top:6px"><button class="sm" onclick="adm(${x.id},7)">+7 أيام</button><button class="sm sec" onclick="adm(${x.id},-1)">-1 يوم</button><button class="sm ${x.ban?"sec":"bad"}" onclick="adm(${x.id},'ban')">${x.ban?"فك الحظر":"حظر"}</button></div></div>`).join(""):`<p class="mut">مفيش مستخدمين لسه.</p>`}</div>
- <div class="card"><h3>سجل العمليات</h3>${lg.length?lg.map(l=>`<div class="mut">${new Date(l.t).toLocaleString("ar-EG")} – ${l.m}</div>`).join(""):`<p class="mut">لا توجد عمليات.</p>`}</div>`}
-function adm(id,a){const x=users().find(u=>u.id===id);let m;if(a==="ban"){x.ban=x.ban?0:1;m=(x.ban?"حظر ":"فك حظر ")+x.name}else{x.exp+=a*864e5;m=(a>0?"زوّد ":"خصم ")+Math.abs(a)+" يوم لـ "+x.name}saveU();logs().push({t:Date.now(),m});DB.set("l",mem.log);Ad(cur())}
-render();
+function Hs(u){if(!HC){$a.innerHTML=SP("جاري التحميل…");loadHist();return}const h=HC;$a.innerHTML=trial(u)+`<div class="hd"><button class="sec sm" onclick="view='home';render()">→ رجوع</button><h2>سجل التقييمات</h2></div>`+(h.length?h.map(x=>`<div class="rc" style="--c:${CC[x.c]||CC[1]}"><div class="r1"><b>${esc(x.dev)}</b><span class="chip">${CN[x.c]||"-"}</span></div><div class="r2">${new Date(x.t).toLocaleDateString("ar-EG",{day:"numeric",month:"short",year:"numeric"})}</div><div class="r3"><div><span>الأدنى</span>${fmt(x.mn)}</div><div class="mid"><span>المتوسط</span>${fmt(x.av)}</div><div><span>الأقصى</span>${fmt(x.mx)}</div></div></div>`).join(""):`<div class="empty">📋<p>لسه معملتش أي تقييم</p><button onclick="start()">ابدأ أول تقييم</button></div>`)}
+async function Ad(u){$a.innerHTML=SP("جاري التحميل…");let us,lg;
+ try{us=(await api("/api/admin/users")).users;lg=(await api("/api/admin/log")).log}catch(e){$a.innerHTML=`<div class="card"><h2>تعذّر تحميل لوحة الأدمن</h2><p class="mut">${esc((e&&e.error)||"")}</p></div>`;return}
+ const dl=x=>Math.max(0,Math.ceil((x.exp-Date.now())/864e5));
+ $a.innerHTML=`<div class="card"><h2>لوحة الأدمن</h2>${us.length?us.map(x=>`<div class="q"><b>${esc(x.name)}</b> – ${esc(x.shop)}<br><span class="mut">${esc(x.phone)} • ${esc(x.email)} • باقي ${dl(x)} يوم ${x.ban?"• محظور":""}</span><div class="row" style="margin-top:6px"><button class="sm" onclick="adm(${x.id},'days',7)">+7 أيام</button><button class="sm sec" onclick="adm(${x.id},'days',-1)">-1 يوم</button><button class="sm ${x.ban?"sec":"bad"}" onclick="adm(${x.id},'${x.ban?"unban":"ban"}')">${x.ban?"فك الحظر":"حظر"}</button></div></div>`).join(""):`<p class="mut">مفيش مستخدمين لسه.</p>`}</div>
+ <div class="card"><h3>سجل العمليات</h3>${lg.length?lg.map(l=>`<div class="mut">${new Date(l.t).toLocaleString("ar-EG")} – ${esc(l.m)}</div>`).join(""):`<p class="mut">لا توجد عمليات.</p>`}</div>`}
+function adm(id,action,days){api("/api/admin/user",{id,action,days}).then(()=>Ad(cur())).catch(e=>toast((e&&e.error)||"فشلت العملية"))}
+async function boot(){if(!TK){render();return}$a.innerHTML=SP("جاري التحميل…");
+ try{U=(await api("/api/me")).user;view=U.admin?"admin":"home"}catch(e){TK=null;DB.set("tk",null)}render()}
+boot();
+
 </script></body></html>
