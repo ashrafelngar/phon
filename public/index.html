@@ -66,6 +66,9 @@ body.auth header{display:none}.au{padding-top:6px}
 .fl{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:0 12px;margin-bottom:10px}.fl:focus-within{border-color:var(--acc);box-shadow:0 0 0 3px rgba(242,169,0,.22)}.fl input{border:0;background:transparent;padding:13px 0;outline:0}.fl input:focus{outline:0}.eye{background:transparent;color:var(--mut);padding:4px 6px;font-size:16px}
 .err{color:var(--bad);font-weight:600;font-size:14px;margin:0 2px 10px}.err:empty{display:none}
 .big1{padding:14px;font-size:16px;border-radius:14px;box-shadow:0 8px 18px rgba(20,38,59,.25)}.sw{text-align:center;margin:14px 0 0;color:var(--mut);font-size:14px}.sw a{font-weight:700}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;text-align:center}.stats div{background:var(--bg);border-radius:12px;padding:8px 2px}.stats b{display:block;font-size:18px}.stats span{font-size:10px;color:var(--mut)}
+.ac{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 14px;margin-bottom:10px}.ac .chip.s-ok{color:var(--ok);border-color:var(--ok)}.ac .chip.s-exp{color:#C98A00;border-color:#C98A00}.ac .chip.s-bad{color:var(--bad);border-color:var(--bad)}
+.ct{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.ct a{background:var(--bg);border-radius:99px;padding:3px 10px;font-size:13px;font-weight:600;text-decoration:none;color:var(--ink);word-break:break-all}.ah{margin-top:8px;border-top:1px solid var(--line);padding-top:6px}.ac .row button{padding:8px 4px;font-size:12px;min-width:0}
 .spin{width:54px;height:54px;border:5px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:sp 1s linear infinite;margin:10px auto}@keyframes sp{to{transform:rotate(360deg)}}.ld{text-align:center;padding:30px 16px}.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:14px}.bar i{display:block;height:100%;width:3%;background:var(--acc);transition:width 1s}
 .kv div{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}.kv span{color:var(--mut)}.kv b{text-align:left;word-break:break-word}
 .empty{text-align:center;padding:30px 10px;color:var(--mut);font-size:40px}.empty p{font-size:15px;margin:6px 0 12px}
@@ -107,7 +110,7 @@ function A(){const up=tab=="up",F=(i,ic,ph,ex="")=>`<div class="fl"><span>${ic}<
 
 function err(m){const e=$("#er");if(e)e.textContent=m;toast(m)}
 async function login(){const p=$("#ph").value.trim(),w=$("#pw").value;if(!p||!w)return err("اكتب رقم الهاتف وكلمة السر");
- try{const d=await api("/api/login",{id:p,pass:w});TK=d.token;DB.set("tk",TK);U=d.user;HC=null;view=U.admin?"admin":"home";render()}catch(e){err((e&&e.error)||"مقدرناش نسجّل الدخول، جرّب تاني")}}
+ try{const d=await api("/api/login",{id:p,pass:w});TK=d.token;DB.set("tk",TK);U=d.user;HC=null;view=U.admin?"admin":"home";render()}catch(e){err(((e&&e.error)||"مقدرناش نسجّل الدخول، جرّب تاني")+(e&&e.detail?" ("+e.detail+")":""))}}
 function logout(){TK=null;U=null;HC=null;DB.set("tk",null);view="auth";render()}
 async function otp(o){const box=$("#otp");box.innerHTML=SP("بنبعت الكود…");let tok;
  try{const d=await o.start();tok=d.token;if(d.demo)toast("كود التجربة: "+d.demo,12000)}catch(e){box.innerHTML="";return err((e&&e.error)||"مقدرناش نبعت الكود، جرّب تاني")}
@@ -216,12 +219,31 @@ function Rs(){const r=W.res,mis=mism();
  <button class="full" onclick="view='home';render()">رجوع للرئيسية</button></div>`}
 const CN=["ممتاز","جيدة","صيانة"],CC=["#16895A","#C98A00","#C63D3D"];
 function Hs(u){if(!HC){$a.innerHTML=SP("جاري التحميل…");loadHist();return}const h=HC;$a.innerHTML=trial(u)+`<div class="hd"><button class="sec sm" onclick="view='home';render()">→ رجوع</button><h2>سجل التقييمات</h2></div>`+(h.length?h.map(x=>`<div class="rc" style="--c:${CC[x.c]||CC[1]}"><div class="r1"><b>${esc(x.dev)}</b><span class="chip">${CN[x.c]||"-"}</span></div><div class="r2">${new Date(x.t).toLocaleDateString("ar-EG",{day:"numeric",month:"short",year:"numeric"})}</div><div class="r3"><div><span>الأدنى</span>${fmt(x.mn)}</div><div class="mid"><span>المتوسط</span>${fmt(x.av)}</div><div><span>الأقصى</span>${fmt(x.mx)}</div></div></div>`).join(""):`<div class="empty">📋<p>لسه معملتش أي تقييم</p><button onclick="start()">ابدأ أول تقييم</button></div>`)}
-async function Ad(u){$a.innerHTML=SP("جاري التحميل…");let us,lg;
- try{us=(await api("/api/admin/users")).users;lg=(await api("/api/admin/log")).log}catch(e){$a.innerHTML=`<div class="card"><h2>تعذّر تحميل لوحة الأدمن</h2><p class="mut">${esc((e&&e.error)||"")}</p></div>`;return}
- const dl=x=>Math.max(0,Math.ceil((x.exp-Date.now())/864e5));
- $a.innerHTML=`<div class="card"><h2>لوحة الأدمن</h2>${us.length?us.map(x=>`<div class="q"><b>${esc(x.name)}</b> – ${esc(x.shop)}<br><span class="mut">${esc(x.phone)} • ${esc(x.email)} • باقي ${dl(x)} يوم ${x.ban?"• محظور":""}</span><div class="row" style="margin-top:6px"><button class="sm" onclick="adm(${x.id},'days',7)">+7 أيام</button><button class="sm sec" onclick="adm(${x.id},'days',-1)">-1 يوم</button><button class="sm ${x.ban?"sec":"bad"}" onclick="adm(${x.id},'${x.ban?"unban":"ban"}')">${x.ban?"فك الحظر":"حظر"}</button></div></div>`).join(""):`<p class="mut">مفيش مستخدمين لسه.</p>`}</div>
- <div class="card"><h3>سجل العمليات</h3>${lg.length?lg.map(l=>`<div class="mut">${new Date(l.t).toLocaleString("ar-EG")} – ${esc(l.m)}</div>`).join(""):`<p class="mut">لا توجد عمليات.</p>`}</div>`}
-function adm(id,action,days){api("/api/admin/user",{id,action,days}).then(()=>Ad(cur())).catch(e=>toast((e&&e.error)||"فشلت العملية"))}
+let AD={users:[],q:"",f:"all",open:null,hist:{},log:[]};
+const nrm=s=>String(s||"").toLowerCase().replace(/[٠-٩]/g,d=>"٠١٢٣٤٥٦٧٨٩".indexOf(d));
+const dlf=x=>Math.ceil((x.exp-Date.now())/864e5);
+const stOf=x=>x.ban?["محظور","bad"]:x.exp<Date.now()?["منتهية","exp"]:["تجربة شغالة","ok"];
+const fdate=t=>t?new Date(t).toLocaleDateString("ar-EG",{day:"numeric",month:"short",year:"numeric"}):"-";
+async function adLoad(){try{const [a,b]=await Promise.all([api("/api/admin/users"),api("/api/admin/log")]);AD.users=a.users;AD.log=b.log;return null}catch(e){return e||{error:"خطأ"}}}
+async function Ad(u){$a.innerHTML=SP("جاري التحميل…");const e=await adLoad();if(e){$a.innerHTML=`<div class="card"><h2>تعذّر تحميل لوحة الأدمن</h2><p class="mut">${esc(e.error||"")}</p>${dt(e)}</div>`;return}adView()}
+function adView(){const us=AD.users,n=f=>us.filter(f).length,ev=us.reduce((s,x)=>s+(x.evals||0),0);
+ $a.innerHTML=`<div class="card"><h2>لوحة الأدمن</h2><div class="stats"><div><b>${us.length}</b><span>التجار</span></div><div><b>${n(x=>!x.ban&&x.exp>=Date.now())}</b><span>شغالة</span></div><div><b>${n(x=>!x.ban&&x.exp<Date.now())}</b><span>منتهية</span></div><div><b>${n(x=>x.ban)}</b><span>محظور</span></div><div><b>${ev}</b><span>فحوصات</span></div></div>
+ <div class="fl" style="margin-top:12px"><span>🔎</span><input id="aq" placeholder="ابحث بالاسم أو الرقم أو الإيميل أو المحل" value="${esc(AD.q)}" oninput="adq(this.value)"></div>
+ <div class="seg">${[["all","الكل"],["ok","شغالة"],["exp","منتهية"],["ban","محظور"]].map(([k,t])=>`<button class="${AD.f===k?"on":""}" onclick="adf('${k}')">${t}</button>`).join("")}</div></div>
+ <div id="al"></div>
+ <div class="card"><h3>سجل العمليات</h3>${AD.log.length?AD.log.map(l=>`<div class="mut">${new Date(l.t).toLocaleString("ar-EG")} – ${esc(l.m)}</div>`).join(""):`<p class="mut">لا توجد عمليات.</p>`}</div>`;adList()}
+function adList(){const q=nrm(AD.q).trim(),now=Date.now(),us=AD.users.filter(x=>(AD.f==="all"||(AD.f==="ban"?x.ban:AD.f==="exp"?!x.ban&&x.exp<now:!x.ban&&x.exp>=now))&&(!q||nrm([x.name,x.shop,x.phone,x.email].join(" ")).includes(q)));
+ $("#al").innerHTML=us.length?us.map(x=>{const [st,c]=stOf(x),h=AD.hist[x.id];return `<div class="ac"><div class="r1"><b>${esc(x.name)}</b><span class="chip s-${c}">${st}</span></div><div class="mut">🏪 ${esc(x.shop)}</div>
+ <div class="ct"><a href="tel:${esc(x.phone)}">📱 ${esc(x.phone)}</a><a href="mailto:${esc(x.email)}">✉️ ${esc(x.email)}</a><a href="https://wa.me/2${esc(x.phone)}" target="_blank">💬 واتساب</a></div>
+ <div class="mut">انضم ${fdate(x.created)} • باقي <b>${Math.max(0,dlf(x))}</b> يوم • فحوصات: <b>${x.evals||0}</b>${x.last_eval?" • آخر فحص "+fdate(x.last_eval):""}</div>
+ <div class="row" style="margin-top:8px"><button class="sm" onclick="adm(${x.id},'days',7)">+7 أيام</button><button class="sm" onclick="adm(${x.id},'days',30)">+30 يوم</button><button class="sm sec" onclick="adm(${x.id},'days',-7)">-7 أيام</button><button class="sm sec" onclick="adc(${x.id})">أيام أخرى</button></div>
+ <div class="row" style="margin-top:6px"><button class="sm ${x.ban?"sec":"bad"}" onclick="adm(${x.id},'${x.ban?"unban":"ban"}')">${x.ban?"فك الحظر":"حظر"}</button><button class="sm sec" onclick="adh(${x.id})">${AD.open===x.id?"إخفاء السجل":"سجل الفحوصات"}</button></div>
+ ${AD.open===x.id?`<div class="ah">${h===undefined?`<p class="mut">جاري التحميل…</p>`:h.length?h.map(i=>`<div class="rc" style="--c:${CC[i.c]||CC[1]};margin:6px 0"><div class="r1"><b>${esc(i.dev)}</b><span class="chip">${CN[i.c]||"-"}</span></div><div class="r2">${fdate(i.t)}</div><div class="r3"><div><span>الأدنى</span>${fmt(i.mn)}</div><div class="mid"><span>المتوسط</span>${fmt(i.av)}</div><div><span>الأقصى</span>${fmt(i.mx)}</div></div></div>`).join(""):`<p class="mut">مفيش فحوصات لسه.</p>`}</div>`:""}</div>`}).join(""):`<div class="card"><p class="mut">مفيش نتايج.</p></div>`}
+function adq(v){AD.q=v;adList()}
+function adf(k){AD.f=k;adView()}
+async function adh(id){if(AD.open===id){AD.open=null;return adList()}AD.open=id;adList();if(AD.hist[id]===undefined){try{AD.hist[id]=(await api("/api/admin/history?uid="+id)).history}catch(e){AD.hist[id]=[]}adList()}}
+async function adm(id,action,days){try{await api("/api/admin/user",{id,action,days});delete AD.hist[id];const e=await adLoad();if(e)throw e;adView()}catch(e){toast((e&&e.error)||"فشلت العملية")}}
+function adc(id){const v=prompt("عدد الأيام (رقم موجب للزيادة، وسالب للخصم)");const n=parseInt(nrm(v),10);if(!n)return;adm(id,"days",n)}
 async function boot(){if(!TK){render();return}$a.innerHTML=SP("جاري التحميل…");
  try{U=(await api("/api/me")).user;view=U.admin?"admin":"home"}catch(e){TK=null;DB.set("tk",null)}render()}
 boot();
