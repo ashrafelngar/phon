@@ -341,9 +341,10 @@ async function login(request, env) {
   const b = await request.json(), id = String(b.id || "").trim().toLowerCase(), pass = String(b.pass || ""), bad = () => { att.push(Date.now()); return J({ error: "الرقم أو كلمة السر غلط" }, 401); };
   if (!id || !pass) return bad();
   if (id === "admin") {
-    if (!env.ADMIN_PASSWORD) return J({ error: "كلمة سر الأدمن مش مضبوطة (ADMIN_PASSWORD)" }, 500);
+    const ap = String(env.ADMIN_PASSWORD || "").trim();
+    if (!ap) return J({ error: "كلمة سر الأدمن مش مضبوطة (ADMIN_PASSWORD)" }, 500);
     const k = appSecret(env);
-    if (!same(await hmac(k, "a|" + pass), await hmac(k, "a|" + env.ADMIN_PASSWORD))) return bad();
+    if (!same(await hmac(k, "a|" + pass.trim()), await hmac(k, "a|" + ap))) return bad();
     return J({ token: await makeToken(env, { adm: 1, exp: Date.now() + 7 * DAY }), user: ADMIN });
   }
   const u = await findUser(env, id);
@@ -374,11 +375,15 @@ async function historyList(env, a) {
   const r = await (await db(env)).prepare("SELECT at, dev, cond, mn, av, mx FROM history WHERE user_id=? ORDER BY at DESC LIMIT 100").bind(a.user.id).all();
   return J({ items: (r.results || []).map(x => ({ t: x.at, dev: x.dev, c: x.cond, mn: x.mn, av: x.av, mx: x.mx })) });
 }
-async function adminRoute(request, env, P) {
+async function adminRoute(request, env, P, url) {
   const d = await db(env);
   if (P === "/api/admin/users") {
-    const r = await d.prepare("SELECT id,name,shop,phone,email,trial_end,banned,created_at FROM users ORDER BY id DESC LIMIT 500").all();
-    return J({ users: (r.results || []).map(u => ({ id: u.id, name: u.name, shop: u.shop, phone: u.phone, email: u.email, exp: u.trial_end, ban: !!u.banned, created: u.created_at })) });
+    const r = await d.prepare("SELECT u.id,u.name,u.shop,u.phone,u.email,u.trial_end,u.banned,u.created_at,(SELECT COUNT(*) FROM history h WHERE h.user_id=u.id) AS evals,(SELECT MAX(at) FROM history h WHERE h.user_id=u.id) AS last_eval FROM users u ORDER BY u.id DESC LIMIT 1000").all();
+    return J({ users: (r.results || []).map(u => ({ id: u.id, name: u.name, shop: u.shop, phone: u.phone, email: u.email, exp: u.trial_end, ban: !!u.banned, created: u.created_at, evals: u.evals || 0, last_eval: u.last_eval || 0 })) });
+  }
+  if (P === "/api/admin/history") {
+    const r = await d.prepare("SELECT at, dev, cond, mn, av, mx FROM history WHERE user_id=? ORDER BY at DESC LIMIT 200").bind(+url.searchParams.get("uid") || 0).all();
+    return J({ history: (r.results || []).map(x => ({ t: x.at, dev: x.dev, c: x.cond, mn: x.mn, av: x.av, mx: x.mx })) });
   }
   if (P === "/api/admin/log") {
     const r = await d.prepare("SELECT at, msg FROM admin_log ORDER BY id DESC LIMIT 50").all();
@@ -419,7 +424,7 @@ async function route(request, env) {
     if (P === "/api/forgot/finish" && post) return forgotFinish(request, env);
     if (P === "/api/me") { const a = await auth(request, env); return a.res || J({ user: a.admin ? ADMIN : pub(a.user) }); }
     if (P === "/api/history") { const a = await auth(request, env); if (a.res) return a.res; if (a.admin) return J({ items: [] }); return post ? historyAdd(request, env, a) : historyList(env, a); }
-    if (P.startsWith("/api/admin/")) { const a = await auth(request, env); if (a.res) return a.res; if (!a.admin) return J({ error: "مش مسموح" }, 403); return adminRoute(request, env, P); }
+    if (P.startsWith("/api/admin/")) { const a = await auth(request, env); if (a.res) return a.res; if (!a.admin) return J({ error: "مش مسموح" }, 403); return adminRoute(request, env, P, u); }
     if (u.pathname === "/api/price" && request.method === "POST") {
       { const au = await auth(request, env, true); if (au.res) return au.res; }
       if (!setup(env)) return J({ error: "المفاتيح غير مضبوطة" }, 500);
@@ -451,9 +456,10 @@ async function route(request, env) {
       catch (e) { console.error(e.message); return J({ error: "فشل جلب المعلومات", detail: String(e.message).slice(0, 300) }, 500); }
     }
     if (u.pathname === "/diag") {
-      if (!env.ADMIN_PASSWORD || u.searchParams.get("k") !== env.ADMIN_PASSWORD) return T("ممنوع. افتح /diag?k=كلمة_سر_الأدمن", 403);
       GKEY = env.GEMINI_API_KEY; TKEY = env.TAVILY_API_KEY; if (env.MODEL) MODEL = env.MODEL;
-      const out = [`keys: GEMINI=${!!GKEY} TAVILY=${!!TKEY} BREVO=${!!env.BREVO_API_KEY} MAIL_FROM=${!!env.MAIL_FROM} model=${MODEL}`];
+      const out = [`config: APP_SECRET=${!!env.APP_SECRET} ADMIN_PASSWORD=${!!String(env.ADMIN_PASSWORD || "").trim()} DB=${!!env.DB} GEMINI=${!!GKEY} TAVILY=${!!TKEY} BREVO=${!!env.BREVO_API_KEY} MAIL_FROM=${!!env.MAIL_FROM} OTP_DEMO=${env.OTP_DEMO === "1"} model=${MODEL}`];
+      try { const c = await (await db(env)).prepare("SELECT COUNT(*) AS n FROM users").first(); out.push(`database: OK (users=${c.n})`); } catch (e) { out.push("database: FAIL " + String(e.message).slice(0, 200)); }
+      if (!String(env.ADMIN_PASSWORD || "").trim() || u.searchParams.get("k") !== String(env.ADMIN_PASSWORD).trim()) { out.push("لتشغيل اختبار Gemini وTavily افتح /diag?k=كلمة_سر_الأدمن"); return T(out.join("\n")); }
       const t = async (name, f) => { const s = Date.now(); try { out.push(`${name}: OK (${await f()}) ${Date.now() - s}ms`); } catch (e) { out.push(`${name}: FAIL ${String(e.message).slice(0, 300)}`); } };
       await t("gemini text", async () => JSON.stringify(await gem([{ text: 'أجب JSON فقط: {"ok":true}' }])));
       await t("gemini image", async () => JSON.stringify(await gem([{ text: 'Describe the image as JSON {"seen":"..."}' }, { inline_data: { mime_type: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==" } }])));
