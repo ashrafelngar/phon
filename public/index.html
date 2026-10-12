@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#14263B">
+<meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="فاحص الموبيل">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <title>فاحص الموبيل المستعمل</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
@@ -69,6 +74,7 @@ body.auth header{display:none}.au{padding-top:6px}
 .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;text-align:center}.stats div{background:var(--bg);border-radius:12px;padding:8px 2px}.stats b{display:block;font-size:18px}.stats span{font-size:10px;color:var(--mut)}
 .ac{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 14px;margin-bottom:10px}.ac .chip.s-ok{color:var(--ok);border-color:var(--ok)}.ac .chip.s-exp{color:#C98A00;border-color:#C98A00}.ac .chip.s-bad{color:var(--bad);border-color:var(--bad)}
 .ct{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.ct a{background:var(--bg);border-radius:99px;padding:3px 10px;font-size:13px;font-weight:600;text-decoration:none;color:var(--ink);word-break:break-all}.ah{margin-top:8px;border-top:1px solid var(--line);padding-top:6px}.ac .row button{padding:8px 4px;font-size:12px;min-width:0}
+.inst{display:flex;align-items:center;gap:10px;background:var(--card);border:1px dashed var(--acc);border-radius:16px;padding:10px 12px;margin-bottom:12px}.inst>span{font-size:26px}.inst>div{flex:1}.inst b{display:block;font-size:15px}.inst small{color:var(--mut);font-size:12px}.inst .x{background:transparent;color:var(--mut);padding:4px 8px}
 .spin{width:54px;height:54px;border:5px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:sp 1s linear infinite;margin:10px auto}@keyframes sp{to{transform:rotate(360deg)}}.ld{text-align:center;padding:30px 16px}.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:14px}.bar i{display:block;height:100%;width:3%;background:var(--acc);transition:width 1s}
 .kv div{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}.kv span{color:var(--mut)}.kv b{text-align:left;word-break:break-word}
 .empty{text-align:center;padding:30px 10px;color:var(--mut);font-size:40px}.empty p{font-size:15px;margin:6px 0 12px}
@@ -131,7 +137,7 @@ const AND='<svg viewBox="0 0 48 48"><path d="M10 22a14 14 0 0 1 28 0z" fill="#ff
 const IPH='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="7" y="2" width="10" height="20" rx="3"/><path d="M10.5 5h3" stroke-linecap="round"/></svg>';
 const HIS='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
 async function loadHist(){try{HC=(await api("/api/history")).items}catch(e){HC=[]}if(view==="home"){const e=$("#hc");if(e)e.textContent=HC.length+" تقييم"}else if(view==="hist")render()}
-function H(u){if(!HC)loadHist();$a.innerHTML=trial(u)+`<div class="greet">أهلاً ${esc(u.name)} 👋<small>${esc(u.shop)}</small></div>
+function H(u){if(!HC)loadHist();$a.innerHTML=trial(u)+instCard()+`<div class="greet">أهلاً ${esc(u.name)} 👋<small>${esc(u.shop)}</small></div>
 <button class="hero" onclick="start()"><span class="ic">${AND}</span><span class="tx"><b>تقييم جهاز أندرويد</b><small>ادخل البيانات وارفع الصور واعرف سعر الشراء</small></span><span class="go">←</span></button>
 <div class="tiles"><button class="tile" onclick="toast('تقييم الآيفون قريباً')"><span class="ic2">${IPH}</span><b>تقييم آيفون</b><em>قريباً</em></button>
 <button class="tile" onclick="view='hist';render()"><span class="ic2">${HIS}</span><b>سجل التقييمات</b><em id="hc">${HC?HC.length+" تقييم":"…"}</em></button></div>`}
@@ -246,6 +252,17 @@ function adf(k){AD.f=k;adView()}
 async function adh(id){if(AD.open===id){AD.open=null;return adList()}AD.open=id;adList();if(AD.hist[id]===undefined){try{AD.hist[id]=(await api("/api/admin/history?uid="+id)).history}catch(e){AD.hist[id]=[]}adList()}}
 async function adm(id,action,days){try{await api("/api/admin/user",{id,action,days});delete AD.hist[id];const e=await adLoad();if(e)throw e;adView()}catch(e){toast((e&&e.error)||"فشلت العملية")}}
 function adc(id){const v=prompt("عدد الأيام (رقم موجب للزيادة، وسالب للخصم)");const n=parseInt(nrm(v),10);if(!n)return;adm(id,"days",n)}
+let DP=null;
+const standalone=()=>{try{return (typeof matchMedia==="function"&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true}catch(e){return false}};
+const isIOS=()=>{try{return /iphone|ipad|ipod/i.test(navigator.userAgent)}catch(e){return false}};
+function instCard(){if(standalone()||DB.get("noinst",0))return "";
+ if(DP)return `<div class="inst"><span>📲</span><div><b>ثبّت التطبيق على موبايلك</b><small>يفتح من الشاشة الرئيسية زي أي تطبيق</small></div><button class="sm" onclick="instNow()">تثبيت</button><button class="x" onclick="instHide()" aria-label="إغلاق">✕</button></div>`;
+ if(isIOS())return `<div class="inst"><span>📲</span><div><b>ثبّت التطبيق على موبايلك</b><small>دوس زر المشاركة ⬆️ ثم "إضافة إلى الشاشة الرئيسية"</small></div><button class="x" onclick="instHide()" aria-label="إغلاق">✕</button></div>`;
+ return ""}
+async function instNow(){if(!DP)return;DP.prompt();try{await DP.userChoice}catch(e){}DP=null;if(view==="home")render()}
+function instHide(){DB.set("noinst",1);if(view==="home")render()}
+if(typeof addEventListener==="function"){addEventListener("beforeinstallprompt",e=>{e.preventDefault();DP=e;if(view==="home")render()});addEventListener("appinstalled",()=>{DP=null;if(view==="home")render()})}
+if(typeof navigator!=="undefined"&&navigator.serviceWorker)navigator.serviceWorker.register("/sw.js").catch(()=>{});
 async function boot(){if(!TK){render();return}$a.innerHTML=SP("جاري التحميل…");
  try{U=(await api("/api/me")).user;view=U.admin?"admin":"home"}catch(e){TK=null;DB.set("tk",null)}render()}
 boot();
